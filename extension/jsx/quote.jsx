@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.4.4";
+    var VERSION = "0.4.5";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -977,20 +977,28 @@ var IQ = (function () {
     }
 
     // Cartelle Presets/<lingua>/Scripts di questo Illustrator (menu File > Script).
+    // Su Windows app.path è ".../Adobe Illustrator 20xx/Support Files", quindi si cerca anche più in alto.
     function scriptFolders() {
-        var out = [], base = app.path.fsName, names = ["Presets", "Presets.localized"], i, j, k, locs, dir;
-        for (i = 0; i < names.length; i++) {
-            var presets = new Folder(base + "/" + names[i]);
-            if (!presets.exists) { continue; }
-            locs = presets.getFiles(function (f) { return f instanceof Folder; });
-            for (j = 0; j < locs.length; j++) {
-                var subs = ["Scripts", "Scripts.localized"];
-                for (k = 0; k < subs.length; k++) {
-                    dir = new Folder(locs[j].fsName + "/" + subs[k]);
-                    if (dir.exists) { out.push(dir); }
+        var out = [], bases = [], f = app.path, i, j, k, n, locs, dir;
+        for (i = 0; i < 4 && f; i++) { bases.push(f); f = f.parent; }
+        var names = ["Presets", "Presets.localized"], subs = ["Scripts", "Scripts.localized"];
+        for (n = 0; n < bases.length && !out.length; n++) {
+            for (i = 0; i < names.length; i++) {
+                var presets = new Folder(bases[n].fsName + "/" + names[i]);
+                if (!presets.exists) { continue; }
+                locs = presets.getFiles(function (x) { return x instanceof Folder; });
+                for (j = 0; j < locs.length; j++) {
+                    for (k = 0; k < subs.length; k++) {
+                        dir = new Folder(locs[j].fsName + "/" + subs[k]);
+                        if (dir.exists) { out.push(dir); }
+                    }
                 }
             }
         }
+        // prima la cartella della lingua di Illustrator
+        out.sort(function (a, b) {
+            return (b.fsName.indexOf(app.locale) >= 0) - (a.fsName.indexOf(app.locale) >= 0);
+        });
         return out;
     }
 
@@ -998,7 +1006,7 @@ var IQ = (function () {
     function shortcutScript(src) {
         try {
             var dirs = scriptFolders(), i, found = 0, copied = 0, err = "";
-            if (!dirs.length) { return "ERR:Cartella degli script di Illustrator non trovata in " + app.path.fsName + "."; }
+            if (!dirs.length) { return "ERR:Cartella Presets\\<lingua>\\Scripts di Illustrator non trovata vicino a " + app.path.fsName + "."; }
             for (i = 0; i < dirs.length; i++) {
                 var target = new File(dirs[i].fsName + "/Quota.jsx");
                 if (src) {
@@ -1008,9 +1016,10 @@ var IQ = (function () {
             }
             if (!src) { return "OK:" + (found ? "1" : "0"); }
             if (!copied) {
-                return "ERR:Non riesco a copiare lo script in " + dirs[0].fsName + " (" + err +
-                    "). Su Windows serve l'amministratore: reinstalla rispondendo Sì alla richiesta di Windows, oppure copia a mano il file " +
-                    new File(src).fsName + " in quella cartella.";
+                // senza permessi: apre le due cartelle per trascinare il file a mano
+                try { new File(src).parent.execute(); dirs[0].execute(); } catch (eOpen) {}
+                return "ERR:Illustrator non ha i permessi per copiare lo script (" + err + "). Ho aperto le due cartelle: trascina Quota.jsx in " +
+                    dirs[0].fsName + " (Windows chiederà conferma), poi riavvia Illustrator.";
             }
             return "OK:Script installato. Riavvia Illustrator: lo trovi in File > Script > Quota.";
         } catch (e) {

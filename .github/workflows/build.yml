@@ -5,6 +5,7 @@ on:
     branches: ["**"]
     tags: ["v*"]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -40,7 +41,7 @@ jobs:
   # Pubblica la Release a ogni push su main (cioè quando si fa il merge di una PR)
   # oppure quando si crea un tag v*. Il numero di versione viene dal manifest.
   release:
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
     needs: [windows, mac]
     runs-on: ubuntu-latest
     steps:

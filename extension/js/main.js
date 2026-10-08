@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.5.5";
+  var VERSION = "0.5.6";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -328,12 +328,12 @@
   }
 
   // ogni secondo: ridisegna le quote degli oggetti cambiati (se attivo), poi aggiorna le info
-  var ticking = false;
+  var ticking = 0;   // ora di inizio del controllo in corso (0 = nessuno)
   function tick() {
-    if (ticking) { return; }
+    if (ticking && Date.now() - ticking < 5000) { return; }   // se una risposta si perde, riprova dopo 5 s
     if (!$("autoUpdate").checked) { refreshState(); return; }
-    ticking = true;
-    call("autoUpdate", undefined, function () { ticking = false; refreshState(); });
+    ticking = Date.now();
+    call("autoUpdate", undefined, function () { ticking = 0; refreshState(); });
   }
 
   function applyTheme() {

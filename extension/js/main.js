@@ -14,6 +14,9 @@
   var BOOL = ["top", "bottom", "left", "right", "useVisible", "comma", "showUnit"];
   var NUM = ["decimals", "scale", "offsetMm", "gapMm", "fontSize", "strokeWidth", "endSize"];
   var TEXT = ["unit", "endStyle", "color"];
+  // opzioni di stile salvate nelle quote del documento (le altre restano del pannello)
+  var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "offsetMm", "gapMm",
+    "fontSize", "strokeWidth", "endStyle", "endSize", "color"];
 
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
@@ -86,18 +89,42 @@
     }
   }
 
-  var lastInfo = null;
-  function refreshInfo() {
-    call("measure", read(), function (res) {
-      if (res === lastInfo) { return; }
-      lastInfo = res;
-      var el = $("info");
-      if (!res || res === "undefined" || res.indexOf("EvalScript error") === 0) {
-        el.textContent = "Seleziona uno o più oggetti";
-        return;
+  // Applica al pannello uno stile letto dal documento.
+  function applyStyle(style) {
+    var s = read();
+    STYLE.forEach(function (k) { if (style[k] !== undefined && style[k] !== null) { s[k] = style[k]; } });
+    write(s);
+    save(s);
+  }
+
+  var lastState = null, lastDoc = null;
+  function refreshState() {
+    call("state", read(), function (res) {
+      if (res === lastState) { return; }
+      lastState = res;
+      var st;
+      try { st = JSON.parse(res); } catch (e) { st = { doc: "", count: 0, quotes: 0 }; }
+
+      // documento appena aperto o cambiato: riprendi lo stile delle sue quote
+      if (st.doc !== lastDoc) {
+        lastDoc = st.doc;
+        if (st.docStyle) {
+          applyStyle(st.docStyle);
+          status("OK", function () { return "Stile ripreso dalle quote di \u201c" + st.doc + "\u201d."; });
+          lastState = null;
+        }
       }
-      var p = res.split("|");
-      el.textContent = (p[0] === "1" ? "1 oggetto" : p[0] + " oggetti") + " · L " + p[1] + " × A " + p[2];
+
+      var parts = [];
+      if (st.count) {
+        parts.push((st.count === 1 ? "1 oggetto" : st.count + " oggetti") + " \u00b7 L " + st.w + " \u00d7 A " + st.h);
+      }
+      if (st.quotes) {
+        parts.push(st.quotes === 1 ? "1 quota selezionata" : st.quotes + " quote selezionate");
+      }
+      $("info").textContent = parts.length ? parts.join(" \u00b7 ") : "Seleziona uno o pi\u00f9 oggetti";
+      $("btnUpdate").disabled = !st.quotes;
+      $("btnPick").disabled = !st.quotes;
     });
   }
 
@@ -124,7 +151,7 @@
       b.addEventListener("click", function () { setMode(b.getAttribute("data-value")); save(read()); });
     });
     document.querySelectorAll("input, select").forEach(function (el) {
-      el.addEventListener("change", function () { save(read()); lastInfo = null; refreshInfo(); });
+      el.addEventListener("change", function () { save(read()); lastState = null; refreshState(); });
     });
 
     $("btnQuote").addEventListener("click", function () {
@@ -132,6 +159,26 @@
       save(s);
       call("quote", s, function (res) {
         status(res, function (n) { return n === "0" ? "Nessuna quota da disegnare." : n + (n === "1" ? " quota aggiunta." : " quote aggiunte."); });
+        lastState = null;
+      });
+    });
+    $("btnUpdate").addEventListener("click", function () {
+      var s = read();
+      save(s);
+      call("update", s, function (res) {
+        status(res, function (n) { return n === "1" ? "1 quota aggiornata." : n + " quote aggiornate."; });
+        lastState = null;
+      });
+    });
+    $("btnPick").addEventListener("click", function () {
+      call("styleOfSelection", undefined, function (res) {
+        if (String(res).indexOf("OK:") === 0) {
+          try { applyStyle(JSON.parse(res.substr(3))); } catch (e) { /* ignora */ }
+          status("OK", function () { return "Stile copiato dalla quota."; });
+          lastState = null;
+        } else {
+          status(res);
+        }
       });
     });
     $("btnClear").addEventListener("click", function () {
@@ -146,8 +193,8 @@
       });
     });
 
-    refreshInfo();
-    setInterval(refreshInfo, 1000);
+    refreshState();
+    setInterval(refreshState, 1000);
   }
 
   document.addEventListener("DOMContentLoaded", init);

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.mobbys.illustratorquote" ExtensionBundleVersion="0.1.0" ExtensionBundleName="Illustrator Quote" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.mobbys.illustratorquote" ExtensionBundleVersion="0.2.0" ExtensionBundleName="Illustrator Quote" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.mobbys.illustratorquote.panel" Version="0.1.0" />
+    <Extension Id="com.mobbys.illustratorquote.panel" Version="0.2.0" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>
@@ -31,13 +31,17 @@
           <Menu>Quote</Menu>
           <Geometry>
             <Size>
-              <Height>560</Height>
+              <Height>720</Height>
               <Width>280</Width>
             </Size>
             <MinSize>
-              <Height>300</Height>
+              <Height>200</Height>
               <Width>220</Width>
             </MinSize>
+            <MaxSize>
+              <Height>3000</Height>
+              <Width>1200</Width>
+            </MaxSize>
           </Geometry>
         </UI>
       </DispatchInfo>

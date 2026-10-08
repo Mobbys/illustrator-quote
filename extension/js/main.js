@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.4.9";
+  var VERSION = "0.5.0";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -368,7 +368,7 @@
     initColors();
 
     // ricorda quali sezioni richiudibili sono aperte
-    ["styleMore", "presetMore"].forEach(function (id) {
+    ["presetMore"].forEach(function (id) {
       try { $(id).open = localStorage.getItem("illustratorQuote." + id) === "1"; } catch (e) { /* ignora */ }
       $(id).addEventListener("toggle", function () {
         try { localStorage.setItem("illustratorQuote." + id, $(id).open ? "1" : "0"); } catch (e) { /* ignora */ }

@@ -147,3 +147,8 @@ details[open] summary { margin-bottom: 6px; }
 ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 ::-webkit-scrollbar-button, ::-webkit-scrollbar-corner { display: none; background: transparent; }
+
+/* moltiplicatore sopra il tasto Quota */
+.multiplier { margin: 4px 0 8px; }
+.multiplier .label { color: var(--muted); }
+.quick { margin-bottom: 6px; }

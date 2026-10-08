@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.6.3";
+  var VERSION = "0.6.4";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -435,7 +435,9 @@
     });
     $("btnRefresh").addEventListener("click", function () {
       call("autoUpdate", true, function (res) {
-        status(res, function (n) { return n === "0" ? "Le quote sono già aggiornate." : n + (n === "1" ? " quota aggiornata." : " quote aggiornate."); });
+        var parts = String(res || "").split("|");
+        status(parts[0], function (n) { return n === "0" ? "Le quote sono già aggiornate." : n + (n === "1" ? " quota aggiornata." : " quote aggiornate."); });
+        if (parts[1]) { $("status").textContent += "\n" + parts.slice(1).join("|"); $("status").style.whiteSpace = "pre-wrap"; }
         lastState = null;
       });
     });

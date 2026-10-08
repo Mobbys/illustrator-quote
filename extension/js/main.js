@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.4.1";
+  var VERSION = "0.4.2";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -151,7 +151,20 @@
 
   function initColors() {
     document.querySelectorAll("[data-color]").forEach(function (b) {
-      b.addEventListener("click", function (e) { e.preventDefault(); openColor(b.getAttribute("data-color")); });
+      // clic: selettore colore di Illustrator; se non disponibile, il riquadro del pannello
+      b.addEventListener("click", function (e) {
+        e.preventDefault();
+        var key = b.getAttribute("data-color");
+        call("pickColor", $(key).value, function (res) {
+          if (String(res).indexOf("OK:") !== 0) { openColor(key); return; }
+          var v = res.substr(3);
+          if (!parseCmyk(v) && !/^#[0-9a-f]{6}$/i.test(v)) { return; }
+          var prev = editingColor;
+          editingColor = key;
+          setColor(v);
+          if (prev === key) { showColorFields(); } else { editingColor = prev; paintChips(); }
+        });
+      });
     });
     document.querySelectorAll("#colorModel button").forEach(function (b) {
       b.addEventListener("click", function () {

@@ -22,11 +22,12 @@
       Seleziona i punti con la <b>Selezione diretta (A)</b>, anche su oggetti diversi (Maiusc per aggiungerli).
       <label class="check"><input type="checkbox" id="aligned"> Distanza diretta tra 2 punti</label>
     </div>
-    <div class="sides" id="sides">
-      <label><input type="checkbox" id="top"> Sopra</label>
-      <label><input type="checkbox" id="bottom"> Sotto</label>
-      <label><input type="checkbox" id="left"> Sinistra</label>
-      <label><input type="checkbox" id="right"> Destra</label>
+    <div class="sides" id="sides" title="Lati su cui mettere le quote">
+      <label class="side side-top" title="Sopra"><input type="checkbox" id="top"><span></span></label>
+      <label class="side side-left" title="Sinistra"><input type="checkbox" id="left"><span></span></label>
+      <div class="side-object"></div>
+      <label class="side side-right" title="Destra"><input type="checkbox" id="right"><span></span></label>
+      <label class="side side-bottom" title="Sotto"><input type="checkbox" id="bottom"><span></span></label>
     </div>
     <label class="check" id="visibleOpt"><input type="checkbox" id="useVisible"> Includi spessore tratto</label>
   </section>

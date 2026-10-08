@@ -10,7 +10,7 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - **Punti**: distanze tra punti scelti con la Selezione diretta (A), anche su oggetti diversi:
   catena orizzontale/verticale oppure distanza diretta tra 2 punti.
 - **Diametro** e **Raggio** di cerchi (a 45°) ed ellissi (sulla larghezza).
-- Lati a scelta: sopra, sotto, sinistra, destra.
+- Lati a scelta (sopra, sotto, sinistra, destra) con dei pulsanti disposti a croce attorno all'oggetto.
 - Unità mm, cm, pollici, pt, px; decimali; virgola o punto; **scala 1:N** per disegni tecnici.
 - Stile: distanza dall'oggetto, stacco, dimensione testo, spessore tratto, colore, terminali (frecce, barrette, punti).
 - Funziona con qualsiasi oggetto (tracciati, gruppi, testi, immagini, simboli). Per i gruppi con maschera di ritaglio misura la maschera.

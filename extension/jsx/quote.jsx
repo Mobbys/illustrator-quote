@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.8";
+    var VERSION = "0.5.9";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -666,7 +666,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {} };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1 };
     }
 
     function parseCached(note) {
@@ -680,8 +680,10 @@ var IQ = (function () {
     }
 
     // Cerca nel documento gli oggetti con il tag e li ricorda per id.
-    function scanTags(doc) {
+    // full: ricerca completa che ricostruisce l'elenco degli oggetti presenti nel documento.
+    function scanTags(doc, full) {
         var all = doc.pageItems, i, it, v, ids, j;
+        if (full) { auto.items = {}; auto.present = {}; }
         for (i = 0; i < all.length; i++) {
             it = all[i];
             try {
@@ -691,6 +693,7 @@ var IQ = (function () {
             ids = v.split(",");
             for (j = 0; j < ids.length; j++) {
                 if (ids[j] && !auto.items[ids[j]]) { auto.items[ids[j]] = it; }
+                if (ids[j] && auto.present) { auto.present[ids[j]] = true; }
             }
         }
     }
@@ -766,7 +769,14 @@ var IQ = (function () {
             key = s.id + (s.k !== undefined ? "#" + s.k : (spec.vis ? "|v" : "|g"));
             if (!tick.hasOwnProperty(key)) {
                 v = null;
-                it = resolveSrc(doc, s);
+                // Illustrator può ancora "trovare" un oggetto eliminato (resta per l'annulla):
+                // conta la ricerca completa fatta quando il numero di oggetti è sceso.
+                if (auto.known[s.id] && auto.present && !auto.present[s.id]) {
+                    it = null;
+                } else {
+                    it = resolveSrc(doc, s);
+                    if (it) { auto.known[s.id] = true; if (auto.present) { auto.present[s.id] = true; } }
+                }
                 if (!it) { v = GONE; }
                 if (it) {
                     try {
@@ -872,6 +882,11 @@ var IQ = (function () {
             if (app.documents.length === 0) { return "OK:0"; }
             var doc = app.activeDocument;
             if (auto.key !== doc.name) { autoReset(doc.name); }
+            // meno oggetti di prima: qualcosa è stato eliminato, rifà l'elenco completo
+            var nItems = -1;
+            try { nItems = doc.pageItems.length; } catch (eC) {}
+            if (nItems >= 0 && (auto.present === null || nItems < auto.count)) { scanTags(doc, true); }
+            auto.count = nItems;
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }

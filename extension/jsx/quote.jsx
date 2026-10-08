@@ -469,13 +469,12 @@ var IQ = (function () {
     // Punti di ancoraggio selezionati (strumento Selezione diretta) negli oggetti selezionati.
     var pointsDiag = "";
 
+    // Solo l'ancoraggio selezionato conta: i punti vicini a quello scelto risultano
+    // "selezionati" con LEFTDIRECTION/RIGHTDIRECTION (maniglie visibili) e vanno ignorati.
     function isSelectedPoint(pt) {
         var sel = pt.selected;
         if (sel == PathPointSelection.ANCHORPOINT) { return true; }
-        // alcune versioni restituiscono valori diversi: accetta tutto tranne "nessuna selezione"
-        try { if (sel == PathPointSelection.NOSELECTION) { return false; } } catch (e) {}
-        var s = String(sel).toUpperCase();
-        return s.indexOf("ANCHOR") >= 0 || (s !== "" && s.indexOf("NOSELECTION") < 0 && s !== "0" && s !== "FALSE");
+        return String(sel).toUpperCase().indexOf("ANCHORPOINT") >= 0;
     }
 
     function collectPoints(items) {

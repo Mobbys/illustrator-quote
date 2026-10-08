@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.4";
+    var VERSION = "0.5.5";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -695,6 +695,33 @@ var IQ = (function () {
         }
     }
 
+    // Gli oggetti selezionati sono quelli che si stanno modificando: ne rilegge il riferimento
+    // a ogni controllo, perché dopo un trascinamento quello ricordato può restare sulla posizione vecchia.
+    function refreshFromSelection(doc) {
+        var sel, seen = 0;
+        try { sel = doc.selection; } catch (e) { return; }
+        if (!sel || sel.typename === "TextRange") { return; }
+        function visit(it) {
+            if (seen++ > 300) { return; }
+            var v, ids, j;
+            try {
+                if (it.tags.length > 0) {
+                    v = String(it.tags.getByName(SRC_TAG).value);
+                    ids = v.split(",");
+                    for (j = 0; j < ids.length; j++) { if (ids[j]) { auto.items[ids[j]] = it; } }
+                }
+            } catch (e1) { /* senza tag */ }
+            try {
+                if (it.typename === "GroupItem") { for (j = 0; j < it.pageItems.length; j++) { visit(it.pageItems[j]); } }
+                else if (it.typename === "CompoundPathItem") { for (j = 0; j < it.pathItems.length; j++) { visit(it.pathItems[j]); } }
+            } catch (e2) {}
+        }
+        var i;
+        for (i = 0; i < sel.length; i++) {
+            if (!isOnQuoteLayer(sel[i])) { visit(sel[i]); }
+        }
+    }
+
     function resolveItem(doc, id) {
         var it = auto.items[id];
         if (it) {
@@ -822,6 +849,7 @@ var IQ = (function () {
             if (app.documents.length === 0) { return "OK:0"; }
             var doc = app.activeDocument;
             if (auto.key !== doc.name) { autoReset(doc.name); }
+            refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
             var groups = layer.groupItems, tick = {}, todo = [], i, g, note, spec, q, u, vals, pos, prev, sig;

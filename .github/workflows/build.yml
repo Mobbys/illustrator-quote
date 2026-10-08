@@ -1,0 +1,56 @@
+name: Installer
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Installa NSIS
+        run: sudo apt-get update && sudo apt-get install -y nsis
+      - name: Crea installer Windows
+        run: |
+          VERSION=$(sed -n 's/.*ExtensionBundleVersion="\([^"]*\)".*/\1/p' extension/CSXS/manifest.xml)
+          mkdir -p dist
+          makensis -V2 -DVERSION="$VERSION" installer/windows/installer.nsi
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*.exe
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Crea installer macOS
+        run: bash installer/mac/build-pkg.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: dist/*.pkg
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Pubblica la Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          body: |
+            **Windows**: scarica `IllustratorQuote-Setup-*.exe` e fai doppio clic.
+            **Mac**: scarica `IllustratorQuote-*.pkg` e fai doppio clic.
+            Poi apri Illustrator: Finestra > Estensioni > Quote.

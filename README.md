@@ -15,31 +15,38 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - Le quote vanno nel livello **"Quote"**, ognuna in un gruppo: si possono spostare, nascondere o eliminare tutte con un clic.
 - Le impostazioni vengono ricordate tra una sessione e l'altra.
 
-## Installazione rapida (senza firma)
+## Installazione (per tutti)
 
-1. Scarica il repository (pulsante **Code > Download ZIP**) e scompattalo.
-2. Chiudi Illustrator.
-3. Esegui lo script:
-   - **macOS**: apri il Terminale e lancia `bash scripts/install-mac.sh`
-   - **Windows**: doppio clic su `scripts\install-win.bat`
-4. Riapri Illustrator: **Finestra > Estensioni > Quote**.
+1. Vai nella pagina [Releases](https://github.com/Mobbys/illustrator-quote/releases/latest) e scarica il file per il tuo computer:
+   - **Windows**: `IllustratorQuote-Setup-x.y.z.exe`
+   - **Mac**: `IllustratorQuote-x.y.z.pkg`
+2. Chiudi Illustrator e fai **doppio clic** sul file scaricato.
+3. Apri Illustrator: **Finestra > Estensioni > Quote**.
 
-Lo script copia la cartella `extension` nella cartella delle estensioni CEP e attiva `PlayerDebugMode`, che permette a Illustrator di caricare estensioni non firmate.
+Per aggiornare basta installare la versione nuova sopra quella vecchia.
 
-Percorsi manuali, se preferisci copiare a mano la cartella `extension` (rinominandola `com.mobbys.illustratorquote`):
+**Avvisi di sicurezza la prima volta.** Gli installer non sono firmati con un certificato a pagamento, quindi il sistema chiede una conferma:
 
-- macOS: `~/Library/Application Support/Adobe/CEP/extensions/`
-- Windows: `%APPDATA%\Adobe\CEP\extensions\`
+- **Windows** (SmartScreen "Windows ha protetto il PC"): clic su **Ulteriori informazioni > Esegui comunque**.
+- **Mac** ("impossibile aprire perché proviene da uno sviluppatore non identificato"): apri **Impostazioni di Sistema > Privacy e sicurezza**, scorri in basso e clic su **Apri comunque**.
 
-## Distribuire ai colleghi con un pacchetto .zxp (consigliato)
+Disinstallare: su Windows da **Impostazioni > App**; su Mac eliminando la cartella
+`/Library/Application Support/Adobe/CEP/extensions/com.mobbys.illustratorquote`.
 
-Un file `.zxp` firmato si installa senza toccare `PlayerDebugMode`.
+## Pubblicare una nuova versione
 
-1. Scarica [ZXPSignCmd](https://github.com/Adobe-CEP/CEP-Resources/tree/master/ZXPSignCMD).
-2. Lancia `ZXPSIGN=/percorso/ZXPSignCmd CERT_PASS=unaPassword bash scripts/build-zxp.sh`.
-   La prima volta crea un certificato self-signed `cert.p12` (tienilo da parte: serve per firmare gli aggiornamenti).
-3. Dai ai colleghi il file `dist/IllustratorQuote-x.y.z.zxp`, che si installa con un installer ZXP
-   (ad esempio *ZXP Installer* di aescripts o *Anastasiy's Extension Manager*).
+1. Aggiorna `ExtensionBundleVersion` (e `Version`) in `extension/CSXS/manifest.xml`, per esempio `0.2.0`.
+2. Crea e pubblica il tag corrispondente: `git tag v0.2.0 && git push origin v0.2.0`.
+3. GitHub Actions crea gli installer Windows e Mac e li pubblica in una nuova Release, pronta da condividere.
+
+Ad ogni push gli installer vengono comunque generati e si trovano tra gli *artifact* della scheda **Actions**, utili per provarli prima di pubblicare.
+
+## Installazione per sviluppo
+
+Chiudi Illustrator e lancia `bash scripts/install-mac.sh` (Mac) o `scripts\install-win.bat` (Windows):
+copiano la cartella `extension` tra le estensioni CEP e attivano `PlayerDebugMode`, che permette di caricare estensioni non firmate.
+In alternativa `scripts/build-zxp.sh` crea un pacchetto `.zxp` firmato, installabile con *ZXP Installer*
+(richiede [ZXPSignCmd](https://github.com/Adobe-CEP/CEP-Resources/tree/master/ZXPSignCMD)).
 
 ## Come è fatto
 
@@ -54,9 +61,13 @@ extension/
   js/main.js          logica del pannello, salva le impostazioni, chiama ExtendScript
   jsx/quote.jsx       motore: legge la selezione e disegna linee, frecce e testi
   .debug              abilita il debug remoto su http://localhost:8088 (solo sviluppo)
+installer/
+  windows/installer.nsi             installer .exe (NSIS)
+  mac/build-pkg.sh                  installer .pkg
 scripts/
-  install-mac.sh, install-win.bat   installazione rapida
-  build-zxp.sh                      crea il pacchetto firmato
+  install-mac.sh, install-win.bat   installazione per sviluppo
+  build-zxp.sh                      crea un pacchetto .zxp firmato
+.github/workflows/build.yml         genera gli installer e la Release
 ```
 
 Per modificare il pannello: installalo con lo script, modifica i file direttamente nella cartella delle estensioni

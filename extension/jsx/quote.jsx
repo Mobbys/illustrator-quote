@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.2";
+    var VERSION = "0.5.3";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -666,7 +666,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {} };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {} };
     }
 
     function parseCached(note) {
@@ -823,7 +823,7 @@ var IQ = (function () {
             if (auto.key !== doc.name) { autoReset(doc.name); }
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
-            var groups = layer.groupItems, tick = {}, todo = [], i, g, note, spec, q, u, vals, pos, prev;
+            var groups = layer.groupItems, tick = {}, todo = [], i, g, note, spec, q, u, vals, pos, prev, sig;
             for (i = 0; i < groups.length; i++) {
                 g = groups[i];
                 try { note = String(g.note || ""); } catch (eN) { continue; }
@@ -832,8 +832,6 @@ var IQ = (function () {
                 if (!spec || !spec.src || !spec.own || !spec.qid) { continue; }
                 q = spec.qid;
                 try { pos = g.position; pos = [pos[0], pos[1]]; } catch (eP) { pos = null; }
-                prev = auto.pos[q];
-                auto.pos[q] = pos;
 
                 // Ctrl+Z sul nostro aggiornamento: non rifarlo finché l'oggetto non cambia ancora
                 u = auto.undo[q];
@@ -843,9 +841,20 @@ var IQ = (function () {
                 }
 
                 vals = currentVals(doc, spec, tick);
-                if (!vals || sameVals(spec, vals)) { continue; }
-                if (auto.skip[q] === sigOf(vals)) { continue; }
+                if (!vals) { continue; }
+                if (sameVals(spec, vals)) {
+                    auto.pos[q] = pos;   // posizione di riferimento della quota con l'oggetto invariato
+                    delete auto.seen[q];
+                    continue;
+                }
+                sig = sigOf(vals);
+                if (auto.skip[q] === sig) { continue; }
+                // aspetta che l'oggetto stia fermo (stessa misura del controllo precedente):
+                // così non si ridisegna mentre lo si trascina o si scrivono i numeri
+                if (auto.seen[q] !== sig) { auto.seen[q] = sig; continue; }
+                delete auto.seen[q];
                 delete auto.skip[q];
+                prev = auto.pos[q];
                 todo.push({ g: g, note: note, vals: vals, step: (pos && prev) ? vsub(pos, prev) : [0, 0] });
             }
             if (todo.length === 0) { return "OK:0"; }
@@ -876,7 +885,6 @@ var IQ = (function () {
             }
             if (wasHidden) { layer.visible = false; }
             if (wasLocked) { layer.locked = true; }
-            if (count) { app.redraw(); }
             return "OK:" + count;
         } catch (e) {
             return "ERR:" + e.message;

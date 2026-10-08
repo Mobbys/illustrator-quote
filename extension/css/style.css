@@ -125,3 +125,6 @@ details { margin-top: 8px; }
 summary { cursor: pointer; color: var(--muted); padding: 2px 0; outline: none; }
 summary:hover { color: var(--fg); }
 details[open] summary { margin-bottom: 6px; }
+
+.version { font-size: 10px; opacity: .5; text-align: right; }
+#btnLegacy { width: 100%; margin-top: 4px; }

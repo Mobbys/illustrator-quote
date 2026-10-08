@@ -19,6 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
+  var VERSION = "0.3.2";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -340,8 +341,26 @@
       });
     });
 
-    refreshState();
-    setInterval(refreshState, 1000);
+    $("btnLegacy").addEventListener("click", function () {
+      call("loadLegacy", undefined, function (res) {
+        if (String(res).indexOf("OK:") !== 0) { status(res); return; }
+        try { applyStyle(JSON.parse(res.substr(3))); } catch (e) { status("ERR:" + e.message); return; }
+        lastState = null;
+        say("Impostazioni del vecchio sistema caricate.");
+      });
+    });
+
+    // Ricarica il motore dal disco: Illustrator altrimenti tiene in memoria la versione vecchia
+    // finché non viene riavviato. Poi controlla che le versioni coincidano.
+    var ext = cep ? cep.getSystemPath("extension") : "";
+    evalScript("$.evalFile(" + JSON.stringify(ext + "/jsx/quote.jsx") + "); IQ.version", function (v) {
+      $("version").textContent = "v" + VERSION;
+      if (v !== VERSION && cep) {
+        status("ERR:Il motore caricato in Illustrator (" + (v || "?") + ") non corrisponde al pannello (" + VERSION + "): chiudi e riapri Illustrator.");
+      }
+      refreshState();
+      setInterval(refreshState, 1000);
+    });
   }
 
   document.addEventListener("DOMContentLoaded", init);

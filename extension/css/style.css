@@ -109,6 +109,26 @@ button.armed { border-color: var(--danger); color: var(--danger); }
 .side input:checked + span { background: var(--accent); border-color: var(--accent); }
 .side input:checked + span::before { background: #fff; }
 .side input:focus-visible + span { outline: 1px solid var(--accent); outline-offset: 1px; }
+/* angoli: due lati in un clic, con una piccola L che indica quali */
+.corner {
+  position: relative; width: 18px; height: 18px; padding: 0; align-self: center; justify-self: center;
+  border: 1px solid var(--border); border-radius: 3px; background: var(--field);
+}
+.corner::before {
+  content: ""; position: absolute; top: 4px; right: 4px; bottom: 4px; left: 4px;
+  border: 0 solid var(--muted);
+}
+.corner-tl::before { border-top-width: 2px; border-left-width: 2px; }
+.corner-tr::before { border-top-width: 2px; border-right-width: 2px; }
+.corner-bl::before { border-bottom-width: 2px; border-left-width: 2px; }
+.corner-br::before { border-bottom-width: 2px; border-right-width: 2px; }
+.corner:hover { border-color: var(--accent); }
+.corner.on { background: var(--accent); border-color: var(--accent); }
+.corner.on::before { border-color: #fff; }
+.corner-tl { grid-column: 1; grid-row: 1; }
+.corner-tr { grid-column: 3; grid-row: 1; }
+.corner-bl { grid-column: 1; grid-row: 3; }
+.corner-br { grid-column: 3; grid-row: 3; }
 .side-object {
   grid-column: 2; grid-row: 2;
   border: 1px dashed var(--muted); border-radius: 2px; opacity: .6;

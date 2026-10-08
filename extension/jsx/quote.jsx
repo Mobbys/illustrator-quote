@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.9";
+    var VERSION = "0.6.0";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -666,7 +666,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1 };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {} };
     }
 
     function parseCached(note) {
@@ -875,6 +875,13 @@ var IQ = (function () {
         return spec;
     }
 
+    function lineMoved(g, spec) {
+        try {
+            var p0 = g.pathItems.getByName(LINE_NAME).pathPoints[0].anchor;
+            return Math.abs(p0[0] - spec.line[0]) > 0.01 || Math.abs(p0[1] - spec.line[1]) > 0.01;
+        } catch (e) { return false; }
+    }
+
     // Ridisegna le quote i cui oggetti sono cambiati. Chiamata dal pannello ogni secondo;
     // con force (tasto Aggiorna) lo fa subito, senza aspettare che l'oggetto stia fermo.
     function autoUpdate(force) {
@@ -890,7 +897,7 @@ var IQ = (function () {
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
-            var groups = layer.groupItems, tick = {}, todo = [], gone = [], i, g, note, spec, q, u, vals, pos, prev, sig;
+            var groups = layer.groupItems, tick = {}, todo = [], gone = [], i, g, note, spec, q, u, vals, pos, prev, sig, last;
             for (i = 0; i < groups.length; i++) {
                 g = groups[i];
                 try { note = String(g.note || ""); } catch (eN) { continue; }
@@ -899,11 +906,18 @@ var IQ = (function () {
                 if (!spec || !spec.src || !spec.own || !spec.qid) { continue; }
                 q = spec.qid;
                 try { pos = g.position; pos = [pos[0], pos[1]]; } catch (eP) { pos = null; }
+                last = auto.lastPos[q];
+                auto.lastPos[q] = pos;
 
                 // Ctrl+Z sul nostro aggiornamento: non rifarlo finché l'oggetto non cambia ancora
                 u = auto.undo[q];
                 if (u) {
-                    if (note === u.from) { auto.skip[q] = u.sig; delete auto.undo[q]; }
+                    if (note === u.from) {
+                        auto.skip[q] = u.sig;
+                        auto.skipMove[q] = note;
+                        delete auto.moving[q];
+                        delete auto.undo[q];
+                    }
                     else if (note !== u.to) { delete auto.undo[q]; }
                 }
 
@@ -922,6 +936,16 @@ var IQ = (function () {
                 if (sameVals(spec, vals)) {
                     auto.pos[q] = pos;   // posizione di riferimento della quota con l'oggetto invariato
                     delete auto.seen[q];
+                    // quota spostata a mano: quando è ferma riallunga i richiami fino all'oggetto
+                    if (spec.type !== "lin" || !pos) { continue; }
+                    if (last && (Math.abs(pos[0] - last[0]) > 0.01 || Math.abs(pos[1] - last[1]) > 0.01)) {
+                        auto.moving[q] = true;   // si sta ancora muovendo
+                        if (!force) { continue; }
+                    }
+                    if (!force && (!auto.moving[q] || auto.skipMove[q] === note)) { continue; }
+                    delete auto.moving[q];
+                    if (!lineMoved(g, spec)) { continue; }
+                    todo.push({ g: g, note: note, vals: vals, step: [0, 0] });
                     continue;
                 }
                 sig = sigOf(vals);
@@ -958,7 +982,7 @@ var IQ = (function () {
                     ctx = { o: o, d: sizes(o), doc: doc, layer: layer, color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
                     if (drawSpec(spec, ctx, t.g)) {
                         auto.undo[spec.qid] = { from: t.note, to: String(t.g.note), sig: sigOf(t.vals) };
-                        try { pos = t.g.position; auto.pos[spec.qid] = [pos[0], pos[1]]; } catch (eP2) {}
+                        try { pos = t.g.position; auto.pos[spec.qid] = auto.lastPos[spec.qid] = [pos[0], pos[1]]; } catch (eP2) {}
                         count++;
                     }
                 } catch (eQ) { /* quota saltata */ }

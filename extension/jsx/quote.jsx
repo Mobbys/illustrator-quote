@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.1";
+    var VERSION = "0.5.2";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -48,6 +48,8 @@ var IQ = (function () {
         "extMm", "textGapMm", "fontSize", "strokeWidth", "endSize", "endStyle", "color", "textColor"];
     var NOTE_PREFIX = "IQ1:";
     var LINE_NAME = "IQ_line";
+    // Tag messo sugli oggetti quotati: contiene gli id (",id1,id2,") che li collegano alle loro quote.
+    var SRC_TAG = "IQsrc";
 
     // ---------- utilità ----------
 
@@ -305,6 +307,7 @@ var IQ = (function () {
     }
 
     function saveData(g, spec, label, lineStart, ctx) {
+        linkSpec(spec, ctx);
         g.name = "Quota " + label;
         spec.line = lineStart;
         spec.style = pickStyle(ctx.o);
@@ -326,7 +329,7 @@ var IQ = (function () {
         var al = vdot(spec.a, u), bl = vdot(spec.b, u);
         var lo = Math.min(al, bl), hi = Math.max(al, bl), dist = hi - lo;
         if (dist <= 0.0001) { return null; }
-        var lineAcross = vdot(spec.ref, n) + d.offset;
+        var lineAcross = vdot(spec.ref, n) + d.offset + (spec.shift || 0);
         var at = function (along, across) { return vadd(vmul(u, along), vmul(n, across)); };
 
         g = newGroup(ctx, g);
@@ -424,15 +427,23 @@ var IQ = (function () {
 
     var UP = [0, 1], DOWN = [0, -1], LEFT = [-1, 0], RIGHT = [1, 0], X = [1, 0], Y = [0, 1];
 
-    function lin(a, b, u, n, ref) { return { type: "lin", a: a, b: b, u: u, n: n, ref: ref }; }
+    // Ogni punto può portare in .s gli indici (in ctx.src) degli oggetti da cui dipende.
+    function lin(a, b, u, n, ref) {
+        var spec = { type: "lin", a: a, b: b, u: u, n: n, ref: ref };
+        if (a.s || b.s || ref.s) { spec.own = { a: a.s || null, b: b.s || null, ref: ref.s || null }; }
+        return spec;
+    }
+
+    function pt(x, y, s) { var p = [x, y]; p.s = s; return p; }
 
     // Larghezza/altezza di un rettangolo sui lati richiesti.
     function quoteRect(r, ctx) {
         var o = ctx.o;
-        if (o.top) { drawLinear(lin([r.left, r.top], [r.right, r.top], X, UP, [r.left, r.top]), ctx); }
-        if (o.bottom) { drawLinear(lin([r.left, r.bottom], [r.right, r.bottom], X, DOWN, [r.left, r.bottom]), ctx); }
-        if (o.left) { drawLinear(lin([r.left, r.bottom], [r.left, r.top], Y, LEFT, [r.left, r.bottom]), ctx); }
-        if (o.right) { drawLinear(lin([r.right, r.bottom], [r.right, r.top], Y, RIGHT, [r.right, r.bottom]), ctx); }
+        var s = r.s;
+        if (o.top) { drawLinear(lin(pt(r.left, r.top, s), pt(r.right, r.top, s), X, UP, pt(r.left, r.top, s)), ctx); }
+        if (o.bottom) { drawLinear(lin(pt(r.left, r.bottom, s), pt(r.right, r.bottom, s), X, DOWN, pt(r.left, r.bottom, s)), ctx); }
+        if (o.left) { drawLinear(lin(pt(r.left, r.bottom, s), pt(r.left, r.top, s), Y, LEFT, pt(r.left, r.bottom, s)), ctx); }
+        if (o.right) { drawLinear(lin(pt(r.right, r.bottom, s), pt(r.right, r.top, s), Y, RIGHT, pt(r.right, r.bottom, s)), ctx); }
     }
 
     function unionRect(rects) {
@@ -442,6 +453,12 @@ var IQ = (function () {
             u.top = Math.max(u.top, rects[i].top);
             u.right = Math.max(u.right, rects[i].right);
             u.bottom = Math.min(u.bottom, rects[i].bottom);
+        }
+        // il rettangolo complessivo dipende da tutti gli oggetti
+        u.s = [];
+        for (i = 0; i < rects.length; i++) {
+            if (!rects[i].s) { u.s = null; break; }
+            u.s = u.s.concat(rects[i].s);
         }
         return u;
     }
@@ -455,14 +472,14 @@ var IQ = (function () {
         for (i = 0; i < byX.length - 1; i++) {
             a = byX[i]; b = byX[i + 1];
             if (b.left - a.right <= 0) { continue; }
-            if (o.top) { drawLinear(lin([a.right, a.top], [b.left, b.top], X, UP, [0, all.top]), ctx); }
-            if (o.bottom) { drawLinear(lin([a.right, a.bottom], [b.left, b.bottom], X, DOWN, [0, all.bottom]), ctx); }
+            if (o.top) { drawLinear(lin(pt(a.right, a.top, a.s), pt(b.left, b.top, b.s), X, UP, pt(0, all.top, all.s)), ctx); }
+            if (o.bottom) { drawLinear(lin(pt(a.right, a.bottom, a.s), pt(b.left, b.bottom, b.s), X, DOWN, pt(0, all.bottom, all.s)), ctx); }
         }
         for (i = 0; i < byY.length - 1; i++) {
             a = byY[i]; b = byY[i + 1];
             if (a.bottom - b.top <= 0) { continue; }
-            if (o.left) { drawLinear(lin([b.left, b.top], [a.left, a.bottom], Y, LEFT, [all.left, 0]), ctx); }
-            if (o.right) { drawLinear(lin([b.right, b.top], [a.right, a.bottom], Y, RIGHT, [all.right, 0]), ctx); }
+            if (o.left) { drawLinear(lin(pt(b.left, b.top, b.s), pt(a.left, a.bottom, a.s), Y, LEFT, pt(all.left, 0, all.s)), ctx); }
+            if (o.right) { drawLinear(lin(pt(b.right, b.top, b.s), pt(a.right, a.bottom, a.s), Y, RIGHT, pt(all.right, 0, all.s)), ctx); }
         }
     }
 
@@ -492,8 +509,9 @@ var IQ = (function () {
                         var key = String(pts[j].selected).replace("PathPointSelection.", "");
                         states[key] = (states[key] || 0) + 1;
                         if (isSelectedPoint(pts[j])) {
-                            var a = pts[j].anchor;
-                            out.push([a[0], a[1]]);
+                            var a = pts[j].anchor, q = [a[0], a[1]];
+                            q.item = it;    // per collegare la quota al punto
+                            out.push(q);
                         }
                     }
                 } else if (it.typename === "CompoundPathItem") {
@@ -530,7 +548,9 @@ var IQ = (function () {
             var u = vnorm(vsub(pts[1], pts[0]));
             var n = labelSide(u);
             var ref = vdot(pts[0], n) >= vdot(pts[1], n) ? pts[0] : pts[1];
-            drawLinear(lin(pts[0], pts[1], u, n, ref), ctx);
+            var spec = lin(pts[0], pts[1], u, n, ref);
+            spec.free = true;   // direzione libera: segue i due punti
+            drawLinear(spec, ctx);
             return;
         }
         var top = pts[0], bottom = pts[0], left = pts[0], right = pts[0];
@@ -560,7 +580,307 @@ var IQ = (function () {
         var c = [(r.left + r.right) / 2, (r.top + r.bottom) / 2];
         var round = Math.abs(w - h) <= Math.max(w, h) * 0.01;
         var u = round ? [Math.SQRT1_2, Math.SQRT1_2] : [1, 0];
-        drawSpec({ type: type, c: c, r: w / 2, u: u }, ctx);
+        var spec = { type: type, c: c, r: w / 2, u: u };
+        if (r.s) { spec.own = { c: r.s }; }
+        drawSpec(spec, ctx);
+    }
+
+    // ---------- collegamento quote / oggetti (aggiornamento automatico) ----------
+
+    var idCounter = 0;
+    function newId() {
+        idCounter++;
+        return "q" + new Date().getTime().toString(36) + idCounter.toString(36);
+    }
+
+    // Aggiunge un id al tag dell'oggetto. Un oggetto copiato si porta dietro gli id
+    // vecchi, per questo ogni quotatura ne usa uno nuovo invece di riusarli.
+    function tagItem(ctx, item) {
+        var i;
+        if (!ctx.tagged) { ctx.tagged = []; }
+        for (i = 0; i < ctx.tagged.length; i++) {
+            if (ctx.tagged[i].item === item) { return ctx.tagged[i].id; }
+        }
+        var id = ctx.callId + "_" + ctx.tagged.length, tag = null;
+        try {
+            try { tag = item.tags.getByName(SRC_TAG); } catch (eNo) { tag = null; }
+            if (tag) {
+                tag.value = String(tag.value || ",") + id + ",";
+            } else {
+                tag = item.tags.add();
+                tag.name = SRC_TAG;
+                tag.value = "," + id + ",";
+            }
+        } catch (e) {
+            return null;   // oggetto bloccato o non etichettabile: quota non collegata
+        }
+        ctx.tagged.push({ item: item, id: id });
+        return id;
+    }
+
+    function linkItem(ctx, item, r) {
+        var id = tagItem(ctx, item);
+        if (!id) { return null; }
+        ctx.src.push({ id: id, b: [r.left, r.top, r.right, r.bottom] });
+        return [ctx.src.length - 1];
+    }
+
+    function linkPoint(ctx, p) {
+        if (!p.item) { return null; }
+        var k = -1, i, a;
+        try {
+            for (i = 0; i < p.item.pathPoints.length; i++) {
+                a = p.item.pathPoints[i].anchor;
+                if (Math.abs(a[0] - p[0]) < 0.01 && Math.abs(a[1] - p[1]) < 0.01) { k = i; break; }
+            }
+        } catch (e) { k = -1; }
+        if (k < 0) { return null; }
+        var id = tagItem(ctx, p.item);
+        if (!id) { return null; }
+        ctx.src.push({ id: id, k: k, p: [p[0], p[1]] });
+        return [ctx.src.length - 1];
+    }
+
+    // Prima di salvare una quota nuova tiene solo gli oggetti che usa davvero.
+    function linkSpec(spec, ctx) {
+        if (!ctx.src || !spec.own || spec.src) { return; }
+        var keys = ["a", "b", "ref", "c"], used = [], map = {}, own = {}, i, j, k, arr;
+        for (i = 0; i < keys.length; i++) {
+            k = keys[i];
+            if (!spec.own.hasOwnProperty(k)) { continue; }
+            arr = spec.own[k];
+            if (!arr) { delete spec.own; return; }   // un punto non collegato: niente aggiornamento
+            own[k] = [];
+            for (j = 0; j < arr.length; j++) {
+                if (map[arr[j]] === undefined) { map[arr[j]] = used.length; used.push(ctx.src[arr[j]]); }
+                own[k].push(map[arr[j]]);
+            }
+        }
+        spec.own = own;
+        spec.src = used;
+        spec.vis = !!ctx.o.useVisible;
+        spec.qid = newId();
+    }
+
+    // Stato tenuto in memoria tra un controllo e l'altro (si azzera cambiando documento).
+    var auto = { key: null };
+
+    function autoReset(key) {
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {} };
+    }
+
+    function parseCached(note) {
+        if (auto.specs.hasOwnProperty(note)) { return auto.specs[note]; }
+        if (auto.nspecs > 500) { auto.specs = {}; auto.nspecs = 0; }
+        var spec = null;
+        try { spec = eval("(" + note.substr(NOTE_PREFIX.length) + ")"); } catch (e) { spec = null; }
+        auto.specs[note] = spec;
+        auto.nspecs++;
+        return spec;
+    }
+
+    // Cerca nel documento gli oggetti con il tag e li ricorda per id.
+    function scanTags(doc) {
+        var all = doc.pageItems, i, it, v, ids, j;
+        for (i = 0; i < all.length; i++) {
+            it = all[i];
+            try {
+                if (it.tags.length === 0) { continue; }
+                v = String(it.tags.getByName(SRC_TAG).value);
+            } catch (e) { continue; }
+            ids = v.split(",");
+            for (j = 0; j < ids.length; j++) {
+                if (ids[j] && !auto.items[ids[j]]) { auto.items[ids[j]] = it; }
+            }
+        }
+    }
+
+    function resolveItem(doc, id) {
+        var it = auto.items[id];
+        if (it) {
+            try { if (it.typename) { return it; } } catch (e) { /* oggetto eliminato */ }
+            delete auto.items[id];
+        }
+        // nuova ricerca solo se nel documento sono cambiati gli oggetti o le quote
+        var n;
+        try { n = doc.pageItems.length + "/" + getQuoteLayer(doc, false).groupItems.length; } catch (e2) { return null; }
+        if (auto.scannedAt === n) { return null; }
+        scanTags(doc);
+        auto.scannedAt = n;
+        return auto.items[id] || null;
+    }
+
+    // Valori attuali degli oggetti collegati: bounds o posizione del punto. null se ne manca uno.
+    function currentVals(doc, spec, tick) {
+        var out = [], i, s, key, it, v;
+        for (i = 0; i < spec.src.length; i++) {
+            s = spec.src[i];
+            key = s.id + (s.k !== undefined ? "#" + s.k : (spec.vis ? "|v" : "|g"));
+            if (!tick.hasOwnProperty(key)) {
+                v = null;
+                it = resolveItem(doc, s.id);
+                if (it) {
+                    try {
+                        if (s.k !== undefined) {
+                            v = it.pathPoints[s.k].anchor;
+                            v = [v[0], v[1]];
+                        } else {
+                            v = boundsOf(it, spec.vis);
+                            v = [v[0], v[1], v[2], v[3]];
+                        }
+                    } catch (e) { v = null; }
+                }
+                tick[key] = v;
+            }
+            if (!tick[key]) { return null; }
+            out.push(tick[key]);
+        }
+        return out;
+    }
+
+    function oldVal(s) { return s.k !== undefined ? s.p : s.b; }
+
+    function sameVals(spec, vals) {
+        var i, j, o;
+        for (i = 0; i < vals.length; i++) {
+            o = oldVal(spec.src[i]);
+            for (j = 0; j < vals[i].length; j++) {
+                if (Math.abs(vals[i][j] - o[j]) > 0.01) { return false; }
+            }
+        }
+        return true;
+    }
+
+    function sigOf(vals) {
+        var out = [], i, j;
+        for (i = 0; i < vals.length; i++) {
+            for (j = 0; j < vals[i].length; j++) { out.push(vals[i][j].toFixed(2)); }
+        }
+        return out.join(",");
+    }
+
+    // Rettangolo complessivo [sinistra, alto, destra, basso] degli oggetti indicati.
+    function boxOf(idxs, list) {
+        var b = list[idxs[0]].slice(0), i, c;
+        for (i = 1; i < idxs.length; i++) {
+            c = list[idxs[i]];
+            b[0] = Math.min(b[0], c[0]); b[1] = Math.max(b[1], c[1]);
+            b[2] = Math.max(b[2], c[2]); b[3] = Math.min(b[3], c[3]);
+        }
+        return b;
+    }
+
+    function mapAxis(x, a0, a1, b0, b1) {
+        var w = a1 - a0;
+        if (Math.abs(w) < 0.0001) { return x + (b0 - a0); }
+        return b0 + (x - a0) * (b1 - b0) / w;
+    }
+
+    // Porta un punto dalla vecchia geometria dell'oggetto alla nuova (stessa posizione relativa).
+    function mapPoint(p, idxs, spec, vals) {
+        if (!idxs || !p) { return p; }
+        if (idxs.length === 1 && spec.src[idxs[0]].k !== undefined) { return vals[idxs[0]].slice(0); }
+        var olds = [], i;
+        for (i = 0; i < spec.src.length; i++) { olds.push(oldVal(spec.src[i])); }
+        var o = boxOf(idxs, olds), n = boxOf(idxs, vals);
+        return [mapAxis(p[0], o[0], o[2], n[0], n[2]), mapAxis(p[1], o[3], o[1], n[3], n[1])];
+    }
+
+    // Nuova specifica per oggetti cambiati. "moved" = spostamento della quota fatto a mano.
+    function respec(spec, vals, moved) {
+        var own = spec.own, i;
+        if (spec.type === "lin") {
+            spec.shift = (spec.shift || 0) + vdot(moved, spec.n);
+            spec.a = mapPoint(spec.a, own.a, spec, vals);
+            spec.b = mapPoint(spec.b, own.b, spec, vals);
+            spec.ref = mapPoint(spec.ref, own.ref, spec, vals);
+            if (spec.free) {
+                // distanza diretta: nuova direzione, stesso lato di prima
+                var u = vnorm(vsub(spec.b, spec.a)), n = vperp(u);
+                if (vdot(n, spec.n) < 0) { n = vmul(n, -1); }
+                spec.u = u;
+                spec.n = n;
+                spec.ref = vdot(spec.a, n) >= vdot(spec.b, n) ? spec.a : spec.b;
+            }
+        } else {
+            var olds = [];
+            for (i = 0; i < spec.src.length; i++) { olds.push(oldVal(spec.src[i])); }
+            var ob = boxOf(own.c, olds), nb = boxOf(own.c, vals), ow = ob[2] - ob[0];
+            if (ow > 0.0001) { spec.r = spec.r * (nb[2] - nb[0]) / ow; }
+            spec.c = mapPoint(spec.c, own.c, spec, vals);
+        }
+        for (i = 0; i < spec.src.length; i++) {
+            if (spec.src[i].k !== undefined) { spec.src[i].p = vals[i]; } else { spec.src[i].b = vals[i]; }
+        }
+        return spec;
+    }
+
+    // Ridisegna le quote i cui oggetti sono cambiati. Chiamata dal pannello ogni secondo.
+    function autoUpdate() {
+        try {
+            if (app.documents.length === 0) { return "OK:0"; }
+            var doc = app.activeDocument;
+            if (auto.key !== doc.name) { autoReset(doc.name); }
+            var layer = getQuoteLayer(doc, false);
+            if (!layer) { return "OK:0"; }
+            var groups = layer.groupItems, tick = {}, todo = [], i, g, note, spec, q, u, vals, pos, prev;
+            for (i = 0; i < groups.length; i++) {
+                g = groups[i];
+                try { note = String(g.note || ""); } catch (eN) { continue; }
+                if (note.indexOf(NOTE_PREFIX) !== 0 || note.indexOf('"qid"') < 0) { continue; }
+                spec = parseCached(note);
+                if (!spec || !spec.src || !spec.own || !spec.qid) { continue; }
+                q = spec.qid;
+                try { pos = g.position; pos = [pos[0], pos[1]]; } catch (eP) { pos = null; }
+                prev = auto.pos[q];
+                auto.pos[q] = pos;
+
+                // Ctrl+Z sul nostro aggiornamento: non rifarlo finché l'oggetto non cambia ancora
+                u = auto.undo[q];
+                if (u) {
+                    if (note === u.from) { auto.skip[q] = u.sig; delete auto.undo[q]; }
+                    else if (note !== u.to) { delete auto.undo[q]; }
+                }
+
+                vals = currentVals(doc, spec, tick);
+                if (!vals || sameVals(spec, vals)) { continue; }
+                if (auto.skip[q] === sigOf(vals)) { continue; }
+                delete auto.skip[q];
+                todo.push({ g: g, note: note, vals: vals, step: (pos && prev) ? vsub(pos, prev) : [0, 0] });
+            }
+            if (todo.length === 0) { return "OK:0"; }
+
+            var wasLocked = layer.locked, wasHidden = !layer.visible, count = 0, t, o, ctx, moved;
+            if (wasLocked) { layer.locked = false; }
+            if (wasHidden) { layer.visible = true; }
+            for (i = 0; i < todo.length; i++) {
+                t = todo[i];
+                try {
+                    spec = eval("(" + t.note.substr(NOTE_PREFIX.length) + ")");   // copia da modificare
+                    moved = [0, 0];
+                    if (spec.type === "lin") {
+                        // spostamento fatto a mano = quanto si è mosso la linea, meno lo spostamento
+                        // fatto in questo istante insieme all'oggetto
+                        var p0 = t.g.pathItems.getByName(LINE_NAME).pathPoints[0].anchor;
+                        moved = vsub(vsub([p0[0], p0[1]], spec.line), t.step);
+                    }
+                    respec(spec, t.vals, moved);
+                    o = merge(spec.style);
+                    ctx = { o: o, d: sizes(o), doc: doc, layer: layer, color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
+                    if (drawSpec(spec, ctx, t.g)) {
+                        auto.undo[spec.qid] = { from: t.note, to: String(t.g.note), sig: sigOf(t.vals) };
+                        try { pos = t.g.position; auto.pos[spec.qid] = [pos[0], pos[1]]; } catch (eP2) {}
+                        count++;
+                    }
+                } catch (eQ) { /* quota saltata */ }
+            }
+            if (wasHidden) { layer.visible = false; }
+            if (wasLocked) { layer.locked = true; }
+            if (count) { app.redraw(); }
+            return "OK:" + count;
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
     }
 
     // ---------- API chiamata dal pannello ----------
@@ -592,6 +912,15 @@ var IQ = (function () {
             for (i = 0; i < items.length; i++) { rects.push(rect(boundsOf(items[i], o.useVisible))); }
 
             var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
+
+            // collega le quote agli oggetti, per l'aggiornamento automatico
+            ctx.src = [];
+            ctx.callId = newId();
+            if (o.mode === "points") {
+                for (i = 0; i < pts.length; i++) { pts[i].s = linkPoint(ctx, pts[i]); }
+            } else {
+                for (i = 0; i < rects.length; i++) { rects[i].s = linkItem(ctx, items[i], rects[i]); }
+            }
 
             if (o.mode === "all") {
                 quoteRect(unionRect(rects), ctx);
@@ -843,7 +1172,10 @@ var IQ = (function () {
                 // se la quota è stata spostata a mano, sposta anche la geometria salvata
                 try {
                     var p0 = g.pathItems.getByName(LINE_NAME).pathPoints[0].anchor;
-                    translateSpec(spec, [p0[0] - spec.line[0], p0[1] - spec.line[1]]);
+                    var moved = [p0[0] - spec.line[0], p0[1] - spec.line[1]];
+                    // le quote collegate restano attaccate all'oggetto: conta solo lo spostamento di lato
+                    if (spec.src && spec.type === "lin") { spec.shift = (spec.shift || 0) + vdot(moved, spec.n); }
+                    else { translateSpec(spec, moved); }
                 } catch (e1) {}
                 drawSpec(spec, ctx, g);
                 // in cima al livello: diventa lo stile di riferimento del documento
@@ -1083,7 +1415,7 @@ var IQ = (function () {
 
     return {
         version: VERSION, loadLegacy: loadLegacy, pickColor: pickColor,
-        quote: quote, update: update, styleOfSelection: styleOfSelection, state: state,
+        quote: quote, update: update, autoUpdate: autoUpdate, styleOfSelection: styleOfSelection, state: state,
         clearAll: clearAll, toggleVisible: toggleVisible, setLocked: setLocked,
         exportPresets: exportPresets, importPresets: importPresets, saveSettings: saveSettings, shortcutScript: shortcutScript
     };

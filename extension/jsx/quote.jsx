@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.4.5";
+    var VERSION = "0.4.6";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -469,13 +469,12 @@ var IQ = (function () {
     // Punti di ancoraggio selezionati (strumento Selezione diretta) negli oggetti selezionati.
     var pointsDiag = "";
 
+    // Solo l'ancoraggio selezionato conta: i punti vicini a quello scelto risultano
+    // "selezionati" con LEFTDIRECTION/RIGHTDIRECTION (maniglie visibili) e vanno ignorati.
     function isSelectedPoint(pt) {
         var sel = pt.selected;
         if (sel == PathPointSelection.ANCHORPOINT) { return true; }
-        // alcune versioni restituiscono valori diversi: accetta tutto tranne "nessuna selezione"
-        try { if (sel == PathPointSelection.NOSELECTION) { return false; } } catch (e) {}
-        var s = String(sel).toUpperCase();
-        return s.indexOf("ANCHOR") >= 0 || (s !== "" && s.indexOf("NOSELECTION") < 0 && s !== "0" && s !== "FALSE");
+        return String(sel).toUpperCase().indexOf("ANCHORPOINT") >= 0;
     }
 
     function collectPoints(items) {
@@ -977,24 +976,34 @@ var IQ = (function () {
     }
 
     // Cartelle Presets/<lingua>/Scripts di questo Illustrator (menu File > Script).
-    // Su Windows app.path è ".../Adobe Illustrator 20xx/Support Files", quindi si cerca anche più in alto.
+    // Su Windows app.path può essere ".../Support Files", quindi si cerca anche più in alto.
+    // Il nome della cartella dipende dalla lingua: Scripts, Script (italiano), Skripten...
+    var SCRIPT_DIR = /^(scripts?|skript\w*|scripten)(\.localized)?$/i;
+    var scriptDiag = "";
+
     function scriptFolders() {
-        var out = [], bases = [], f = app.path, i, j, k, n, locs, dir;
+        var out = [], bases = [], f = app.path, i, j, k, n, locs, subs, seen = [];
         for (i = 0; i < 4 && f; i++) { bases.push(f); f = f.parent; }
-        var names = ["Presets", "Presets.localized"], subs = ["Scripts", "Scripts.localized"];
+        var isDir = function (x) { return x instanceof Folder; };
         for (n = 0; n < bases.length && !out.length; n++) {
-            for (i = 0; i < names.length; i++) {
-                var presets = new Folder(bases[n].fsName + "/" + names[i]);
-                if (!presets.exists) { continue; }
-                locs = presets.getFiles(function (x) { return x instanceof Folder; });
+            var tops = bases[n].getFiles(isDir);
+            for (i = 0; i < tops.length; i++) {
+                if (!/^presets/i.test(tops[i].name)) { continue; }
+                locs = tops[i].getFiles(isDir);
                 for (j = 0; j < locs.length; j++) {
+                    subs = locs[j].getFiles(isDir);
                     for (k = 0; k < subs.length; k++) {
-                        dir = new Folder(locs[j].fsName + "/" + subs[k]);
-                        if (dir.exists) { out.push(dir); }
+                        if (SCRIPT_DIR.test(decodeURI(subs[k].name))) { out.push(subs[k]); }
+                    }
+                    if (seen.length < 1) {
+                        var names = [];
+                        for (k = 0; k < subs.length && k < 30; k++) { names.push(decodeURI(subs[k].name)); }
+                        seen.push(locs[j].fsName + ": " + names.join(", "));
                     }
                 }
             }
         }
+        scriptDiag = seen.join("; ");
         // prima la cartella della lingua di Illustrator
         out.sort(function (a, b) {
             return (b.fsName.indexOf(app.locale) >= 0) - (a.fsName.indexOf(app.locale) >= 0);
@@ -1006,7 +1015,7 @@ var IQ = (function () {
     function shortcutScript(src) {
         try {
             var dirs = scriptFolders(), i, found = 0, copied = 0, err = "";
-            if (!dirs.length) { return "ERR:Cartella Presets\\<lingua>\\Scripts di Illustrator non trovata vicino a " + app.path.fsName + "."; }
+            if (!dirs.length) { return "ERR:Cartella degli script di Illustrator non trovata vicino a " + app.path.fsName + (scriptDiag ? " (trovato " + scriptDiag + ")" : " (nessuna cartella Presets)") + "."; }
             for (i = 0; i < dirs.length; i++) {
                 var target = new File(dirs[i].fsName + "/Quota.jsx");
                 if (src) {

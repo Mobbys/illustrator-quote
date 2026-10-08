@@ -10,7 +10,7 @@ done
 # Script "Quota" nel menu File > Script di ogni Illustrator installato (per la scorciatoia da tastiera).
 SCRIPT="/Library/Application Support/Adobe/CEP/extensions/com.mobbys.illustratorquote/script/Quota.jsx"
 if [ -f "$SCRIPT" ]; then
-  find /Applications -maxdepth 4 -type d -path "*/Adobe Illustrator*/Presets*/*/Scripts*" 2>/dev/null | while read -r dir; do
+  find /Applications -maxdepth 4 -type d -path "*/Adobe Illustrator*/Presets*/*/S[ck]ript*" 2>/dev/null | while read -r dir; do
     cp "$SCRIPT" "$dir/Quota.jsx" || true
   done
 fi

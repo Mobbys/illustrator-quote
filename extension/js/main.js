@@ -7,19 +7,19 @@
   var DEFAULTS = {
     mode: "each",
     top: true, bottom: false, left: true, right: false,
-    aligned: false, useVisible: false, lockLayer: false,
+    aligned: false, useVisible: false, lockLayer: false, autoUpdate: true,
     unit: "mm", decimals: 1, scale: 1, comma: true, showUnit: true,
     sizeFactor: 1, offsetMm: 5, gapMm: 1, textGapMm: 1, fontSize: 8, strokeWidth: 0.5,
     endStyle: "arrow", endSize: 5, color: "cmyk(0,100,0,0)", textColor: "cmyk(0,100,0,0)"
   };
-  var BOOL = ["top", "bottom", "left", "right", "aligned", "useVisible", "lockLayer", "comma", "showUnit"];
+  var BOOL = ["top", "bottom", "left", "right", "aligned", "useVisible", "lockLayer", "autoUpdate", "comma", "showUnit"];
   var NUM = ["decimals", "scale", "sizeFactor", "offsetMm", "gapMm", "textGapMm", "fontSize", "strokeWidth", "endSize"];
   var TEXT = ["unit", "endStyle", "color", "textColor"];
   // opzioni di stile: salvate nelle quote del documento e nei preset (le altre restano del pannello)
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.5.1";
+  var VERSION = "0.5.2";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -327,6 +327,15 @@
     });
   }
 
+  // ogni secondo: ridisegna le quote degli oggetti cambiati (se attivo), poi aggiorna le info
+  var ticking = false;
+  function tick() {
+    if (ticking) { return; }
+    if (!$("autoUpdate").checked) { refreshState(); return; }
+    ticking = true;
+    call("autoUpdate", undefined, function () { ticking = false; refreshState(); });
+  }
+
   function applyTheme() {
     if (!cep || !cep.getHostEnvironment) { return; }
     try {
@@ -543,7 +552,7 @@
         status("ERR:Il motore caricato in Illustrator (" + (v || "?") + ") non corrisponde al pannello (" + VERSION + "): chiudi e riapri Illustrator.");
       }
       refreshState();
-      setInterval(refreshState, 1000);
+      setInterval(tick, 1000);
     });
   }
 

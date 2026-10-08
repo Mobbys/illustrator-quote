@@ -45,15 +45,18 @@
       <select id="presetList" title="Applica un preset salvato"></select>
       <button id="btnPresetDelete" class="small danger" title="Elimina il preset scelto">Elimina</button>
     </div>
-    <div class="row">
-      <input type="text" id="presetName" placeholder="Nome del preset" maxlength="40">
-      <button id="btnPresetSave" class="small" title="Salva lo stile attuale con questo nome">Salva</button>
-    </div>
-    <div class="row">
-      <button id="btnPresetExport" class="grow" title="Salva tutti i preset in un file da dare ai colleghi">Esporta…</button>
-      <button id="btnPresetImport" class="grow" title="Carica i preset da un file">Importa…</button>
-    </div>
-    <button id="btnLegacy" title="Carica lo stile dal livello __DimensionSettingsData__ del vecchio sistema e dice cosa trova">Carica impostazioni del vecchio sistema</button>
+    <details id="presetMore">
+      <summary>Salva, esporta, importa…</summary>
+      <div class="row">
+        <input type="text" id="presetName" placeholder="Nome del preset" maxlength="40">
+        <button id="btnPresetSave" class="small" title="Salva lo stile attuale con questo nome">Salva</button>
+      </div>
+      <div class="row">
+        <button id="btnPresetExport" class="grow" title="Salva tutti i preset in un file da dare ai colleghi">Esporta…</button>
+        <button id="btnPresetImport" class="grow" title="Carica i preset da un file">Importa…</button>
+      </div>
+      <button id="btnLegacy" title="Carica lo stile dal livello __DimensionSettingsData__ del vecchio sistema e dice cosa trova">Carica impostazioni del vecchio sistema</button>
+    </details>
   </section>
 
   <section>
@@ -78,9 +81,29 @@
   <section>
     <h2>Stile</h2>
     <div class="quick">
-      <label class="swatch" title="Colore di linee e frecce"><span>Linee</span><input type="color" id="color"></label>
-      <label class="swatch" title="Colore del testo"><span>Testo</span><input type="color" id="textColor"></label>
+      <div class="swatch" title="Colore di linee e frecce"><span>Linee</span><button class="chip" data-color="color"></button><input type="hidden" id="color"></div>
+      <div class="swatch" title="Colore del testo"><span>Testo</span><button class="chip" data-color="textColor"></button><input type="hidden" id="textColor"></div>
       <label class="factor-field" title="Moltiplicatore: scala testo, tratto, frecce e distanze"><span>×</span><input type="number" id="sizeFactor" min="0.05" step="0.1"></label>
+    </div>
+    <div id="colorPop" class="color-pop" hidden>
+      <div class="tabs" id="colorModel">
+        <button data-value="cmyk">CMYK</button>
+        <button data-value="rgb">RGB</button>
+      </div>
+      <div id="cmykFields" class="cmyk">
+        <label>C <input type="number" id="cmykC" min="0" max="100" step="1"></label>
+        <label>M <input type="number" id="cmykM" min="0" max="100" step="1"></label>
+        <label>Y <input type="number" id="cmykY" min="0" max="100" step="1"></label>
+        <label>K <input type="number" id="cmykK" min="0" max="100" step="1"></label>
+      </div>
+      <div id="rgbFields" class="rgb" hidden>
+        <input type="color" id="rgbPick">
+        <input type="text" id="rgbHex" maxlength="7" placeholder="#000000">
+      </div>
+      <div class="row">
+        <button id="btnAiPicker" class="small grow" title="Apre il selettore colore di Illustrator">Selettore di Illustrator…</button>
+        <button id="btnColorDone" class="small">Fatto</button>
+      </div>
     </div>
     <div class="factors">
       <button class="small" data-factor="0.5">×0,5</button>

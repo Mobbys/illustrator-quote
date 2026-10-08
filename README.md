@@ -7,7 +7,10 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - **Ogni oggetto**: larghezza e/o altezza di ciascun oggetto selezionato.
 - **Selezione**: ingombro totale di tutti gli oggetti selezionati.
 - **Distanze**: spazio libero tra oggetti vicini, in orizzontale e in verticale (quote a catena).
-- Lati a scelta: sopra, sotto, sinistra, destra.
+- **Punti**: distanze tra punti scelti con la Selezione diretta (A), anche su oggetti diversi:
+  catena orizzontale/verticale oppure distanza diretta tra 2 punti.
+- **Diametro** e **Raggio** di cerchi (a 45°) ed ellissi (sulla larghezza).
+- Lati a scelta (sopra, sotto, sinistra, destra) con dei pulsanti disposti a croce attorno all'oggetto.
 - Unità mm, cm, pollici, pt, px; decimali; virgola o punto; **scala 1:N** per disegni tecnici.
 - Stile: distanza dall'oggetto, stacco, dimensione testo, spessore tratto, colore, terminali (frecce, barrette, punti).
 - Funziona con qualsiasi oggetto (tracciati, gruppi, testi, immagini, simboli). Per i gruppi con maschera di ritaglio misura la maschera.
@@ -18,6 +21,12 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - **Aggiorna quote selezionate**: seleziona una o più quote, cambia lo stile nel pannello e premi il pulsante;
   le quote vengono ridisegnate mantenendo le misure (anche se le hai spostate a mano).
 - **Prendi stile**: copia nel pannello lo stile della quota selezionata.
+- **Preset di stile**: salva lo stile con un nome e riapplicalo con un clic. *Esporta/Importa* salvano i preset
+  in un file `.json` da passare ai colleghi.
+- **Moltiplicatore**: scala insieme testo, tratto, frecce e distanze (×0,5, ×2, ×5…) per oggetti piccoli o grandi.
+- **Blocca il livello Quote dopo la quotatura**: impostazione del pannello, ricordata su questo computer e non salvata nel file.
+- Se un file contiene le impostazioni del vecchio sistema di quotatura (livello `__DimensionSettingsData__`
+  con il testo `settings`), il pannello le carica in automatico. Le distanze `offset` e `textOffset` sono lette in punti.
 - Il pannello si può allungare liberamente.
 - Le impostazioni vengono ricordate tra una sessione e l'altra.
 

@@ -3,23 +3,25 @@
   "use strict";
 
   var STORAGE_KEY = "illustratorQuote.settings";
+  var PRESETS_KEY = "illustratorQuote.presets";
   var DEFAULTS = {
     mode: "each",
     top: true, bottom: false, left: true, right: false,
-    useVisible: false,
+    aligned: false, useVisible: false, lockLayer: false,
     unit: "mm", decimals: 1, scale: 1, comma: true, showUnit: true,
-    offsetMm: 5, gapMm: 1, fontSize: 8, strokeWidth: 0.5,
+    sizeFactor: 1, offsetMm: 5, gapMm: 1, textGapMm: 1, fontSize: 8, strokeWidth: 0.5,
     endStyle: "arrow", endSize: 5, color: "#e6007e"
   };
-  var BOOL = ["top", "bottom", "left", "right", "useVisible", "comma", "showUnit"];
-  var NUM = ["decimals", "scale", "offsetMm", "gapMm", "fontSize", "strokeWidth", "endSize"];
+  var BOOL = ["top", "bottom", "left", "right", "aligned", "useVisible", "lockLayer", "comma", "showUnit"];
+  var NUM = ["decimals", "scale", "sizeFactor", "offsetMm", "gapMm", "textGapMm", "fontSize", "strokeWidth", "endSize"];
   var TEXT = ["unit", "endStyle", "color"];
-  // opzioni di stile salvate nelle quote del documento (le altre restano del pannello)
-  var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "offsetMm", "gapMm",
-    "fontSize", "strokeWidth", "endStyle", "endSize", "color"];
+  // opzioni di stile: salvate nelle quote del documento e nei preset (le altre restano del pannello)
+  var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
+    "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color"];
 
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
+  var current = { mode: DEFAULTS.mode };
 
   // ---------- comunicazione con Illustrator ----------
 
@@ -51,12 +53,13 @@
     var s = { mode: current.mode };
     BOOL.forEach(function (k) { s[k] = $(k).checked; });
     NUM.forEach(function (k) {
-      var v = parseFloat($(k).value);
+      var v = parseFloat(String($(k).value).replace(",", "."));
       s[k] = isNaN(v) ? DEFAULTS[k] : v;
     });
     TEXT.forEach(function (k) { s[k] = $(k).value; });
     s.decimals = Math.max(0, Math.min(4, Math.round(s.decimals)));
     if (s.scale <= 0) { s.scale = 1; }
+    if (s.sizeFactor <= 0) { s.sizeFactor = 1; }
     return s;
   }
 
@@ -73,6 +76,51 @@
     for (var i = 0; i < btns.length; i++) {
       btns[i].classList.toggle("on", btns[i].getAttribute("data-value") === mode);
     }
+    var circle = (mode === "diameter" || mode === "radius");
+    $("sides").hidden = circle || (mode === "points" && $("aligned").checked);
+    $("pointsOpts").hidden = mode !== "points";
+    $("visibleOpt").hidden = mode === "points";
+  }
+
+  // Applica al pannello uno stile (dal documento, da una quota o da un preset).
+  function applyStyle(style) {
+    var s = read();
+    STYLE.forEach(function (k) { if (style[k] !== undefined && style[k] !== null) { s[k] = style[k]; } });
+    write(s);
+    save(s);
+  }
+
+  function styleOf(s) {
+    var st = {};
+    STYLE.forEach(function (k) { st[k] = s[k]; });
+    return st;
+  }
+
+  // ---------- preset (salvati su questo computer, esportabili su file) ----------
+
+  function loadPresets() {
+    try { return JSON.parse(localStorage.getItem(PRESETS_KEY)) || {}; } catch (e) { return {}; }
+  }
+
+  function savePresets(p) {
+    try { localStorage.setItem(PRESETS_KEY, JSON.stringify(p)); } catch (e) { /* ignora */ }
+  }
+
+  function renderPresets(selected) {
+    var p = loadPresets(), sel = $("presetList");
+    sel.innerHTML = "";
+    var first = document.createElement("option");
+    first.value = "";
+    first.textContent = Object.keys(p).length ? "Scegli un preset…" : "Nessun preset salvato";
+    sel.appendChild(first);
+    Object.keys(p).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (name) {
+      var o = document.createElement("option");
+      o.value = name;
+      o.textContent = name;
+      sel.appendChild(o);
+    });
+    sel.value = selected && p[selected] ? selected : "";
+    $("btnPresetDelete").disabled = !sel.value;
   }
 
   // ---------- UI ----------
@@ -89,13 +137,7 @@
     }
   }
 
-  // Applica al pannello uno stile letto dal documento.
-  function applyStyle(style) {
-    var s = read();
-    STYLE.forEach(function (k) { if (style[k] !== undefined && style[k] !== null) { s[k] = style[k]; } });
-    write(s);
-    save(s);
-  }
+  function say(text) { status("OK:", function () { return text; }); }
 
   var lastState = null, lastDoc = null;
   function refreshState() {
@@ -103,26 +145,30 @@
       if (res === lastState) { return; }
       lastState = res;
       var st;
-      try { st = JSON.parse(res); } catch (e) { st = { doc: "", count: 0, quotes: 0 }; }
+      try { st = JSON.parse(res); } catch (e) { st = { doc: "", count: 0, quotes: 0, points: 0 }; }
 
       // documento appena aperto o cambiato: riprendi lo stile delle sue quote
       if (st.doc !== lastDoc) {
         lastDoc = st.doc;
         if (st.docStyle) {
           applyStyle(st.docStyle);
-          status("OK", function () { return "Stile ripreso dalle quote di \u201c" + st.doc + "\u201d."; });
+          say(st.docStyle.legacy
+            ? "Stile ripreso dalle impostazioni del vecchio sistema di quotatura."
+            : "Stile ripreso dalle quote di “" + st.doc + "”.");
           lastState = null;
         }
       }
 
       var parts = [];
-      if (st.count) {
-        parts.push((st.count === 1 ? "1 oggetto" : st.count + " oggetti") + " \u00b7 L " + st.w + " \u00d7 A " + st.h);
+      if (current.mode === "points") {
+        parts.push(st.points === 1 ? "1 punto selezionato" : (st.points || 0) + " punti selezionati");
+      } else if (st.count) {
+        parts.push((st.count === 1 ? "1 oggetto" : st.count + " oggetti") + " · L " + st.w + " × A " + st.h);
       }
       if (st.quotes) {
         parts.push(st.quotes === 1 ? "1 quota selezionata" : st.quotes + " quote selezionate");
       }
-      $("info").textContent = parts.length ? parts.join(" \u00b7 ") : "Seleziona uno o pi\u00f9 oggetti";
+      $("info").textContent = parts.length ? parts.join(" · ") : "Seleziona uno o più oggetti";
       $("btnUpdate").disabled = !st.quotes;
       $("btnPick").disabled = !st.quotes;
     });
@@ -138,20 +184,53 @@
     } catch (e) { /* tema di default */ }
   }
 
-  var current = { mode: DEFAULTS.mode };
+  // Pulsante che chiede un secondo clic di conferma (confirm() non è affidabile nei pannelli CEP).
+  function confirmButton(btn, label, action) {
+    var original = btn.textContent, timer = null;
+    btn.addEventListener("click", function () {
+      if (timer) {
+        clearTimeout(timer);
+        timer = null;
+        btn.textContent = original;
+        btn.classList.remove("armed");
+        action();
+        return;
+      }
+      btn.textContent = label;
+      btn.classList.add("armed");
+      timer = setTimeout(function () {
+        timer = null;
+        btn.textContent = original;
+        btn.classList.remove("armed");
+      }, 3000);
+    });
+  }
 
   function init() {
     write(load());
+    renderPresets();
     applyTheme();
     if (cep && cep.addEventListener) {
       cep.addEventListener("com.adobe.csxs.events.ThemeColorChanged", applyTheme);
     }
 
     document.querySelectorAll("#mode button").forEach(function (b) {
-      b.addEventListener("click", function () { setMode(b.getAttribute("data-value")); save(read()); });
+      b.addEventListener("click", function () { setMode(b.getAttribute("data-value")); save(read()); lastState = null; refreshState(); });
     });
     document.querySelectorAll("input, select").forEach(function (el) {
-      el.addEventListener("change", function () { save(read()); lastState = null; refreshState(); });
+      if (el.id === "presetList" || el.id === "presetName") { return; }
+      el.addEventListener("change", function () { save(read()); setMode(current.mode); lastState = null; refreshState(); });
+    });
+
+    document.querySelectorAll("[data-factor]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        $("sizeFactor").value = b.getAttribute("data-factor");
+        save(read());
+      });
+    });
+
+    $("lockLayer").addEventListener("change", function () {
+      call("setLocked", $("lockLayer").checked);
     });
 
     $("btnQuote").addEventListener("click", function () {
@@ -174,17 +253,75 @@
       call("styleOfSelection", undefined, function (res) {
         if (String(res).indexOf("OK:") === 0) {
           try { applyStyle(JSON.parse(res.substr(3))); } catch (e) { /* ignora */ }
-          status("OK", function () { return "Stile copiato dalla quota."; });
+          say("Stile copiato dalla quota.");
           lastState = null;
         } else {
           status(res);
         }
       });
     });
-    $("btnClear").addEventListener("click", function () {
-      if (!window.confirm("Eliminare tutte le quote del documento?")) { return; }
+
+    // preset
+    $("presetList").addEventListener("change", function () {
+      var name = $("presetList").value, p = loadPresets();
+      $("btnPresetDelete").disabled = !name;
+      if (name && p[name]) {
+        applyStyle(p[name]);
+        $("presetName").value = name;
+        say("Preset “" + name + "” applicato.");
+      }
+    });
+    $("btnPresetSave").addEventListener("click", function () {
+      var name = $("presetName").value.trim();
+      if (!name) { status("ERR:Scrivi un nome per il preset."); $("presetName").focus(); return; }
+      var p = loadPresets();
+      var existed = !!p[name];
+      p[name] = styleOf(read());
+      savePresets(p);
+      renderPresets(name);
+      say(existed ? "Preset “" + name + "” aggiornato." : "Preset “" + name + "” salvato.");
+    });
+    $("presetName").addEventListener("keydown", function (e) {
+      if (e.key === "Enter") { $("btnPresetSave").click(); }
+    });
+    confirmButton($("btnPresetDelete"), "Conferma", function () {
+      var name = $("presetList").value, p = loadPresets();
+      if (!name) { return; }
+      delete p[name];
+      savePresets(p);
+      renderPresets();
+      say("Preset “" + name + "” eliminato.");
+    });
+    $("btnPresetExport").addEventListener("click", function () {
+      var p = loadPresets();
+      if (!Object.keys(p).length) { status("ERR:Non ci sono preset da esportare."); return; }
+      call("exportPresets", JSON.stringify({ illustratorQuotePresets: 1, presets: p }, null, 2), function (res) {
+        status(res, function (f) { return f ? "Preset esportati in " + f + "." : ""; });
+      });
+    });
+    $("btnPresetImport").addEventListener("click", function () {
+      call("importPresets", undefined, function (res) {
+        if (String(res).indexOf("OK:") !== 0) { status(res); return; }
+        var text = res.substr(3);
+        if (!text) { return; }
+        try {
+          var data = JSON.parse(text), incoming = data.presets || data, p = loadPresets(), n = 0;
+          Object.keys(incoming).forEach(function (name) {
+            if (incoming[name] && typeof incoming[name] === "object") { p[name] = incoming[name]; n++; }
+          });
+          savePresets(p);
+          renderPresets();
+          say(n === 1 ? "1 preset importato." : n + " preset importati.");
+        } catch (e) {
+          status("ERR:Il file non contiene preset validi.");
+        }
+      });
+    });
+
+    confirmButton($("btnClear"), "Clicca di nuovo per eliminare", function () {
       call("clearAll", undefined, function (res) {
         status(res, function () { return "Quote eliminate."; });
+        lastState = null;
       });
     });
     $("btnToggle").addEventListener("click", function () {

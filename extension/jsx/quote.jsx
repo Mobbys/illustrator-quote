@@ -649,17 +649,69 @@ var IQ = (function () {
         return "mm";
     }
 
-    function legacyStyle(doc) {
-        var layer, tf, data;
-        try { layer = doc.layers.getByName(LEGACY_LAYER); } catch (e) { return null; }
-        try {
-            tf = layer.textFrames.getByName("settings");
-        } catch (e2) {
-            if (layer.textFrames.length === 0) { return null; }
-            tf = layer.textFrames[0];
+    // Cerca il livello delle vecchie impostazioni, anche se è un sottolivello
+    // o se il nome differisce per maiuscole/spazi.
+    function findLegacyLayer(layers) {
+        var i, l, found;
+        for (i = 0; i < layers.length; i++) {
+            l = layers[i];
+            if (String(l.name).replace(/\s+/g, "").toLowerCase() === LEGACY_LAYER.toLowerCase()) { return l; }
+            if (l.layers && l.layers.length) {
+                found = findLegacyLayer(l.layers);
+                if (found) { return found; }
+            }
         }
-        try { data = eval("(" + tf.contents + ")"); } catch (e3) { return null; }
-        if (!data || typeof data !== "object") { return null; }
+        return null;
+    }
+
+    // Tutti i testi del livello, anche dentro gruppi e sottolivelli.
+    function textFramesIn(container, out) {
+        var i;
+        try { for (i = 0; i < container.textFrames.length; i++) { out.push(container.textFrames[i]); } } catch (e) {}
+        try { for (i = 0; i < container.groupItems.length; i++) { textFramesIn(container.groupItems[i], out); } } catch (e2) {}
+        try { for (i = 0; i < container.layers.length; i++) { textFramesIn(container.layers[i], out); } } catch (e3) {}
+        return out;
+    }
+
+    function parseSettings(text) {
+        var s = String(text)
+            .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')   // virgolette tipografiche
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[\u0003\r\n]/g, " ");
+        var a = s.indexOf("{"), b = s.lastIndexOf("}");
+        if (a < 0 || b <= a) { return null; }
+        var data = eval("(" + s.substring(a, b + 1) + ")");
+        return (data && typeof data === "object") ? data : null;
+    }
+
+    // Risultato memorizzato per documento: la ricerca non va ripetuta ogni secondo.
+    var legacyCache = { key: null, value: null };
+
+    function legacyStyle(doc) {
+        var key = doc.name + "|" + doc.layers.length;
+        if (legacyCache.key === key) { return legacyCache.value; }
+        legacyCache.key = key;
+        legacyCache.value = null;
+        var data = null, frames, i, error = null;
+        try {
+            var layer = findLegacyLayer(doc.layers);
+            frames = layer ? textFramesIn(layer, []) : [];
+            if (!layer) {
+                // nessun livello: prova un testo chiamato "settings" ovunque nel documento
+                try { frames = [doc.textFrames.getByName("settings")]; } catch (eNo) { return null; }
+            }
+            // prima il testo chiamato "settings", poi qualsiasi testo che contenga un JSON
+            frames.sort(function (x, y) { return (y.name === "settings") - (x.name === "settings"); });
+            for (i = 0; i < frames.length && !data; i++) {
+                try { data = parseSettings(frames[i].contents); } catch (eParse) { error = eParse.message; }
+            }
+        } catch (e) {
+            error = e.message;
+        }
+        if (!data) {
+            if (error) { legacyCache.value = { legacy: true, legacyError: error }; }
+            return legacyCache.value;
+        }
 
         var st = {}, PT_MM = 25.4 / 72;
         if (typeof data.offset === "number") { st.offsetMm = Math.round(data.offset * PT_MM * 100) / 100; }
@@ -683,6 +735,7 @@ var IQ = (function () {
         var color = swatchHex(doc, data.lineColorName) || swatchHex(doc, data.textColorName);
         if (color) { st.color = color; }
         st.legacy = true;
+        legacyCache.value = st;
         return st;
     }
 

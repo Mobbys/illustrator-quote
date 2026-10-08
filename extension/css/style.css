@@ -113,3 +113,12 @@ button.armed { border-color: var(--danger); color: var(--danger); }
   grid-column: 2; grid-row: 2;
   border: 1px dashed var(--muted); border-radius: 2px; opacity: .6;
 }
+/* riga rapida: colore + moltiplicatore */
+.quick { display: flex; gap: 4px; align-items: stretch; }
+.quick input[type=color] { width: 34px; flex: 0 0 34px; height: auto; min-height: 22px; }
+.quick input[type=number] { flex: 1 1 40px; min-width: 36px; width: auto; }
+.quick button.small { padding: 3px 5px; }
+details { margin-top: 8px; }
+summary { cursor: pointer; color: var(--muted); padding: 2px 0; outline: none; }
+summary:hover { color: var(--fg); }
+details[open] summary { margin-bottom: 6px; }

@@ -23,10 +23,12 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - **Prendi stile**: copia nel pannello lo stile della quota selezionata.
 - **Preset di stile**: salva lo stile con un nome e riapplicalo con un clic. *Esporta/Importa* salvano i preset
   in un file `.json` da passare ai colleghi.
+- **Colore e moltiplicatore** sempre a portata di mano; le altre opzioni di stile sono in una sezione richiudibile.
 - **Moltiplicatore**: scala insieme testo, tratto, frecce e distanze (×0,5, ×2, ×5…) per oggetti piccoli o grandi.
 - **Blocca il livello Quote dopo la quotatura**: impostazione del pannello, ricordata su questo computer e non salvata nel file.
 - Se un file contiene le impostazioni del vecchio sistema di quotatura (livello `__DimensionSettingsData__`
-  con il testo `settings`), il pannello le carica in automatico. Le distanze `offset` e `textOffset` sono lette in punti.
+  con il testo `settings`, anche come sottolivello o dentro un gruppo), il pannello le carica in automatico,
+  a meno che il file non contenga già quote fatte con questo pannello. Le distanze `offset` e `textOffset` sono lette in punti.
 - Il pannello si può allungare liberamente.
 - Le impostazioni vengono ricordate tra una sessione e l'altra.
 

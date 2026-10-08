@@ -76,34 +76,37 @@
 
   <section>
     <h2>Stile</h2>
-    <div class="row factor">
-      <label>Moltiplicatore <input type="number" id="sizeFactor" min="0.05" step="0.1" title="Moltiplica testo, tratto, frecce e distanze"></label>
+    <div class="quick">
+      <input type="color" id="color" title="Colore delle quote">
+      <input type="number" id="sizeFactor" min="0.05" step="0.1" title="Moltiplicatore: scala testo, tratto, frecce e distanze">
       <button class="small" data-factor="0.5">×0,5</button>
       <button class="small" data-factor="1">×1</button>
       <button class="small" data-factor="2">×2</button>
       <button class="small" data-factor="5">×5</button>
     </div>
-    <div class="row">
-      <label>Distanza (mm) <input type="number" id="offsetMm" min="0" step="0.5"></label>
-      <label>Stacco (mm) <input type="number" id="gapMm" min="0" step="0.5"></label>
-    </div>
-    <div class="row">
-      <label>Testo (pt) <input type="number" id="fontSize" min="1" step="0.5"></label>
-      <label title="Distanza tra testo e linea di quota">Spazio (mm) <input type="number" id="textGapMm" min="0" step="0.5"></label>
-      <label>Tratto (pt) <input type="number" id="strokeWidth" min="0.1" step="0.1"></label>
-    </div>
-    <div class="row">
-      <label>Terminali
-        <select id="endStyle">
-          <option value="arrow">Frecce</option>
-          <option value="tick">Barrette</option>
-          <option value="dot">Punti</option>
-          <option value="none">Nessuno</option>
-        </select>
-      </label>
-      <label>Dim. (pt) <input type="number" id="endSize" min="1" step="0.5"></label>
-      <label>Colore <input type="color" id="color"></label>
-    </div>
+    <details id="styleMore">
+      <summary>Altre opzioni di stile</summary>
+      <div class="row">
+        <label>Distanza (mm) <input type="number" id="offsetMm" min="0" step="0.5"></label>
+        <label>Stacco (mm) <input type="number" id="gapMm" min="0" step="0.5"></label>
+      </div>
+      <div class="row">
+        <label>Testo (pt) <input type="number" id="fontSize" min="1" step="0.5"></label>
+        <label title="Distanza tra testo e linea di quota">Spazio (mm) <input type="number" id="textGapMm" min="0" step="0.5"></label>
+        <label>Tratto (pt) <input type="number" id="strokeWidth" min="0.1" step="0.1"></label>
+      </div>
+      <div class="row">
+        <label>Terminali
+          <select id="endStyle">
+            <option value="arrow">Frecce</option>
+            <option value="tick">Barrette</option>
+            <option value="dot">Punti</option>
+            <option value="none">Nessuno</option>
+          </select>
+        </label>
+        <label>Dim. (pt) <input type="number" id="endSize" min="1" step="0.5"></label>
+      </div>
+    </details>
   </section>
 
   <div class="actions">

@@ -150,7 +150,9 @@
       // documento appena aperto o cambiato: riprendi lo stile delle sue quote
       if (st.doc !== lastDoc) {
         lastDoc = st.doc;
-        if (st.docStyle) {
+        if (st.docStyle && st.docStyle.legacyError) {
+          status("ERR:Ho trovato le impostazioni del vecchio sistema ma non riesco a leggerle (" + st.docStyle.legacyError + ").");
+        } else if (st.docStyle) {
           applyStyle(st.docStyle);
           say(st.docStyle.legacy
             ? "Stile ripreso dalle impostazioni del vecchio sistema di quotatura."
@@ -210,6 +212,12 @@
     write(load());
     renderPresets();
     applyTheme();
+
+    // ricorda se "Altre opzioni di stile" è aperto
+    try { $("styleMore").open = localStorage.getItem("illustratorQuote.styleMore") === "1"; } catch (e) { /* ignora */ }
+    $("styleMore").addEventListener("toggle", function () {
+      try { localStorage.setItem("illustratorQuote.styleMore", $("styleMore").open ? "1" : "0"); } catch (e) { /* ignora */ }
+    });
     if (cep && cep.addEventListener) {
       cep.addEventListener("com.adobe.csxs.events.ThemeColorChanged", applyTheme);
     }

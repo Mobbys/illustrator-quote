@@ -442,15 +442,30 @@ var IQ = (function () {
     }
 
     // Punti di ancoraggio selezionati (strumento Selezione diretta) negli oggetti selezionati.
+    var pointsDiag = "";
+
+    function isSelectedPoint(pt) {
+        var sel = pt.selected;
+        if (sel == PathPointSelection.ANCHORPOINT) { return true; }
+        // alcune versioni restituiscono valori diversi: accetta tutto tranne "nessuna selezione"
+        try { if (sel == PathPointSelection.NOSELECTION) { return false; } } catch (e) {}
+        var s = String(sel).toUpperCase();
+        return s.indexOf("ANCHOR") >= 0 || (s !== "" && s.indexOf("NOSELECTION") < 0 && s !== "0" && s !== "FALSE");
+    }
+
     function collectPoints(items) {
-        var out = [], i;
+        var out = [], i, types = {}, errors = [];
         function walk(it) {
-            var j;
+            var j, pts;
             try {
+                types[it.typename] = (types[it.typename] || 0) + 1;
                 if (it.typename === "PathItem") {
-                    for (j = 0; j < it.pathPoints.length; j++) {
-                        if (it.pathPoints[j].selected == PathPointSelection.ANCHORPOINT) {
-                            var a = it.pathPoints[j].anchor;
+                    // selectedPathPoints contiene solo i punti toccati dalla Selezione diretta
+                    try { pts = it.selectedPathPoints; } catch (eSel) { pts = null; }
+                    if (!pts || !pts.length) { pts = it.pathPoints; }
+                    for (j = 0; j < pts.length; j++) {
+                        if (isSelectedPoint(pts[j])) {
+                            var a = pts[j].anchor;
                             out.push([a[0], a[1]]);
                         }
                     }
@@ -459,7 +474,7 @@ var IQ = (function () {
                 } else if (it.typename === "GroupItem") {
                     for (j = 0; j < it.pageItems.length; j++) { walk(it.pageItems[j]); }
                 }
-            } catch (e) {}
+            } catch (e) { errors.push(e.message); }
         }
         for (i = 0; i < items.length; i++) { walk(items[i]); }
         // elimina i doppioni (punti coincidenti)
@@ -471,6 +486,10 @@ var IQ = (function () {
             }
             if (!dup) { uniq.push(out[i]); }
         }
+        var t = [], k2;
+        for (k2 in types) { if (types.hasOwnProperty(k2)) { t.push(types[k2] + " " + k2); } }
+        pointsDiag = "trovati " + uniq.length + " punti in: " + (t.join(", ") || "nessun oggetto") +
+            (errors.length ? "; errore: " + errors[0] : "");
         return uniq;
     }
 
@@ -535,7 +554,7 @@ var IQ = (function () {
             var pts = null;
             if (o.mode === "points") {
                 pts = collectPoints(items);
-                if (pts.length < 2) { return "ERR:Seleziona almeno 2 punti con lo strumento Selezione diretta (A)."; }
+                if (pts.length < 2) { return "ERR:Seleziona almeno 2 punti con lo strumento Selezione diretta (A). [" + pointsDiag + "]"; }
                 if (o.aligned && pts.length !== 2) { return "ERR:Per la distanza diretta seleziona esattamente 2 punti."; }
             }
 
@@ -649,17 +668,69 @@ var IQ = (function () {
         return "mm";
     }
 
-    function legacyStyle(doc) {
-        var layer, tf, data;
-        try { layer = doc.layers.getByName(LEGACY_LAYER); } catch (e) { return null; }
-        try {
-            tf = layer.textFrames.getByName("settings");
-        } catch (e2) {
-            if (layer.textFrames.length === 0) { return null; }
-            tf = layer.textFrames[0];
+    // Cerca il livello delle vecchie impostazioni, anche se è un sottolivello
+    // o se il nome differisce per maiuscole/spazi.
+    function findLegacyLayer(layers) {
+        var i, l, found;
+        for (i = 0; i < layers.length; i++) {
+            l = layers[i];
+            if (String(l.name).replace(/\s+/g, "").toLowerCase() === LEGACY_LAYER.toLowerCase()) { return l; }
+            if (l.layers && l.layers.length) {
+                found = findLegacyLayer(l.layers);
+                if (found) { return found; }
+            }
         }
-        try { data = eval("(" + tf.contents + ")"); } catch (e3) { return null; }
-        if (!data || typeof data !== "object") { return null; }
+        return null;
+    }
+
+    // Tutti i testi del livello, anche dentro gruppi e sottolivelli.
+    function textFramesIn(container, out) {
+        var i;
+        try { for (i = 0; i < container.textFrames.length; i++) { out.push(container.textFrames[i]); } } catch (e) {}
+        try { for (i = 0; i < container.groupItems.length; i++) { textFramesIn(container.groupItems[i], out); } } catch (e2) {}
+        try { for (i = 0; i < container.layers.length; i++) { textFramesIn(container.layers[i], out); } } catch (e3) {}
+        return out;
+    }
+
+    function parseSettings(text) {
+        var s = String(text)
+            .replace(/[\u201C\u201D\u201E\u00AB\u00BB]/g, '"')   // virgolette tipografiche
+            .replace(/[\u2018\u2019]/g, "'")
+            .replace(/[\u0003\r\n]/g, " ");
+        var a = s.indexOf("{"), b = s.lastIndexOf("}");
+        if (a < 0 || b <= a) { return null; }
+        var data = eval("(" + s.substring(a, b + 1) + ")");
+        return (data && typeof data === "object") ? data : null;
+    }
+
+    // Risultato memorizzato per documento: la ricerca non va ripetuta ogni secondo.
+    var legacyCache = { key: null, value: null };
+
+    function legacyStyle(doc) {
+        var key = doc.name + "|" + doc.layers.length;
+        if (legacyCache.key === key) { return legacyCache.value; }
+        legacyCache.key = key;
+        legacyCache.value = null;
+        var data = null, frames, i, error = null;
+        try {
+            var layer = findLegacyLayer(doc.layers);
+            frames = layer ? textFramesIn(layer, []) : [];
+            if (!layer) {
+                // nessun livello: prova un testo chiamato "settings" ovunque nel documento
+                try { frames = [doc.textFrames.getByName("settings")]; } catch (eNo) { return null; }
+            }
+            // prima il testo chiamato "settings", poi qualsiasi testo che contenga un JSON
+            frames.sort(function (x, y) { return (y.name === "settings") - (x.name === "settings"); });
+            for (i = 0; i < frames.length && !data; i++) {
+                try { data = parseSettings(frames[i].contents); } catch (eParse) { error = eParse.message; }
+            }
+        } catch (e) {
+            error = e.message;
+        }
+        if (!data) {
+            if (error) { legacyCache.value = { legacy: true, legacyError: error }; }
+            return legacyCache.value;
+        }
 
         var st = {}, PT_MM = 25.4 / 72;
         if (typeof data.offset === "number") { st.offsetMm = Math.round(data.offset * PT_MM * 100) / 100; }
@@ -683,6 +754,7 @@ var IQ = (function () {
         var color = swatchHex(doc, data.lineColorName) || swatchHex(doc, data.textColorName);
         if (color) { st.color = color; }
         st.legacy = true;
+        legacyCache.value = st;
         return st;
     }
 

@@ -10,15 +10,16 @@
     aligned: false, useVisible: false, lockLayer: false,
     unit: "mm", decimals: 1, scale: 1, comma: true, showUnit: true,
     sizeFactor: 1, offsetMm: 5, gapMm: 1, textGapMm: 1, fontSize: 8, strokeWidth: 0.5,
-    endStyle: "arrow", endSize: 5, color: "#e6007e"
+    endStyle: "arrow", endSize: 5, color: "#e6007e", textColor: "#e6007e"
   };
   var BOOL = ["top", "bottom", "left", "right", "aligned", "useVisible", "lockLayer", "comma", "showUnit"];
   var NUM = ["decimals", "scale", "sizeFactor", "offsetMm", "gapMm", "textGapMm", "fontSize", "strokeWidth", "endSize"];
-  var TEXT = ["unit", "endStyle", "color"];
+  var TEXT = ["unit", "endStyle", "color", "textColor"];
   // opzioni di stile: salvate nelle quote del documento e nei preset (le altre restano del pannello)
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
-    "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color"];
+    "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
+  var VERSION = "0.3.2";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -85,7 +86,9 @@
   // Applica al pannello uno stile (dal documento, da una quota o da un preset).
   function applyStyle(style) {
     var s = read();
-    STYLE.forEach(function (k) { if (style[k] !== undefined && style[k] !== null) { s[k] = style[k]; } });
+    STYLE.forEach(function (k) { if (style[k] !== undefined && style[k] !== null && style[k] !== "") { s[k] = style[k]; } });
+    // stili salvati prima che esistesse il colore del testo: testo dello stesso colore delle linee
+    if (!style.textColor && style.color) { s.textColor = style.color; }
     write(s);
     save(s);
   }
@@ -338,8 +341,26 @@
       });
     });
 
-    refreshState();
-    setInterval(refreshState, 1000);
+    $("btnLegacy").addEventListener("click", function () {
+      call("loadLegacy", undefined, function (res) {
+        if (String(res).indexOf("OK:") !== 0) { status(res); return; }
+        try { applyStyle(JSON.parse(res.substr(3))); } catch (e) { status("ERR:" + e.message); return; }
+        lastState = null;
+        say("Impostazioni del vecchio sistema caricate.");
+      });
+    });
+
+    // Ricarica il motore dal disco: Illustrator altrimenti tiene in memoria la versione vecchia
+    // finché non viene riavviato. Poi controlla che le versioni coincidano.
+    var ext = cep ? cep.getSystemPath("extension") : "";
+    evalScript("$.evalFile(" + JSON.stringify(ext + "/jsx/quote.jsx") + "); IQ.version", function (v) {
+      $("version").textContent = "v" + VERSION;
+      if (v !== VERSION && cep) {
+        status("ERR:Il motore caricato in Illustrator (" + (v || "?") + ") non corrisponde al pannello (" + VERSION + "): chiudi e riapri Illustrator.");
+      }
+      refreshState();
+      setInterval(refreshState, 1000);
+    });
   }
 
   document.addEventListener("DOMContentLoaded", init);

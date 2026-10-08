@@ -12,6 +12,7 @@
  */
 
 var IQ = (function () {
+    var VERSION = "0.3.2";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -38,12 +39,13 @@ var IQ = (function () {
         strokeWidth: 0.5,    // pt
         endSize: 5,          // dimensione terminali in pt
         endStyle: "arrow",   // arrow | tick | dot | none
-        color: "#E6007E"
+        color: "#E6007E",    // colore di linee e frecce
+        textColor: ""        // colore del testo ("" = come le linee)
     };
 
     // Opzioni che definiscono lo stile di una quota (salvate dentro ogni quota).
     var STYLE_KEYS = ["unit", "decimals", "comma", "showUnit", "scale", "sizeFactor", "offsetMm", "gapMm",
-        "extMm", "textGapMm", "fontSize", "strokeWidth", "endSize", "endStyle", "color"];
+        "extMm", "textGapMm", "fontSize", "strokeWidth", "endSize", "endStyle", "color", "textColor"];
     var NOTE_PREFIX = "IQ1:";
     var LINE_NAME = "IQ_line";
 
@@ -257,7 +259,7 @@ var IQ = (function () {
         tf.contents = text;
         var attrs = tf.textRange.characterAttributes;
         attrs.size = ctx.d.font;
-        attrs.fillColor = ctx.color;
+        attrs.fillColor = ctx.textColor;
         var b0 = tf.geometricBounds;
         var h = b0[1] - b0[3];
         // angolo leggibile: tra -90 (escluso) e 90 gradi
@@ -561,7 +563,7 @@ var IQ = (function () {
             var rects = [];
             for (i = 0; i < items.length; i++) { rects.push(rect(boundsOf(items[i], o.useVisible))); }
 
-            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), count: 0 };
+            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
 
             if (o.mode === "all") {
                 quoteRect(unionRect(rects), ctx);
@@ -703,34 +705,56 @@ var IQ = (function () {
         return (data && typeof data === "object") ? data : null;
     }
 
+    // Testi in cui possono stare le impostazioni: contenuto, nota e tag dell'oggetto.
+    function candidateTexts(tf) {
+        var out = [], i;
+        try { out.push(tf.contents); } catch (e1) {}
+        try { if (tf.note) { out.push(tf.note); } } catch (e2) {}
+        try { for (i = 0; i < tf.tags.length; i++) { out.push(tf.tags[i].value); } } catch (e3) {}
+        return out;
+    }
+
+    // Legge le vecchie impostazioni. Restituisce { data, diag } dove diag descrive cosa è stato trovato.
+    function legacyRead(doc) {
+        var layer = findLegacyLayer(doc.layers), frames = [], i, j, texts, data = null, diag;
+        if (layer) {
+            frames = textFramesIn(layer, []);
+            diag = "livello \u201c" + layer.name + "\u201d trovato, " + frames.length + " testi";
+        } else {
+            try { frames = [doc.textFrames.getByName("settings")]; } catch (eNo) { frames = []; }
+            var names = [];
+            for (i = 0; i < doc.layers.length && i < 15; i++) { names.push(doc.layers[i].name); }
+            diag = "livello " + LEGACY_LAYER + " non trovato (livelli: " + names.join(", ") + ")" +
+                (frames.length ? ", ma c'\u00e8 un testo \u201csettings\u201d" : "");
+        }
+        // prima il testo chiamato "settings", poi gli altri
+        frames.sort(function (x, y) { return (y.name === "settings") - (x.name === "settings"); });
+        var lastErr = "";
+        for (i = 0; i < frames.length && !data; i++) {
+            texts = candidateTexts(frames[i]);
+            for (j = 0; j < texts.length && !data; j++) {
+                try { data = parseSettings(texts[j]); } catch (eParse) { lastErr = eParse.message + " in: " + String(texts[j]).substr(0, 60); }
+            }
+        }
+        if (!data && frames.length) {
+            diag += "; testo non leggibile" + (lastErr ? " (" + lastErr + ")" : ": " + String(candidateTexts(frames[0])[0]).substr(0, 60));
+        }
+        return { data: data, diag: diag };
+    }
+
     // Risultato memorizzato per documento: la ricerca non va ripetuta ogni secondo.
     var legacyCache = { key: null, value: null };
 
-    function legacyStyle(doc) {
+    function legacyStyle(doc, force) {
         var key = doc.name + "|" + doc.layers.length;
-        if (legacyCache.key === key) { return legacyCache.value; }
+        if (!force && legacyCache.key === key) { return legacyCache.value; }
         legacyCache.key = key;
         legacyCache.value = null;
-        var data = null, frames, i, error = null;
-        try {
-            var layer = findLegacyLayer(doc.layers);
-            frames = layer ? textFramesIn(layer, []) : [];
-            if (!layer) {
-                // nessun livello: prova un testo chiamato "settings" ovunque nel documento
-                try { frames = [doc.textFrames.getByName("settings")]; } catch (eNo) { return null; }
-            }
-            // prima il testo chiamato "settings", poi qualsiasi testo che contenga un JSON
-            frames.sort(function (x, y) { return (y.name === "settings") - (x.name === "settings"); });
-            for (i = 0; i < frames.length && !data; i++) {
-                try { data = parseSettings(frames[i].contents); } catch (eParse) { error = eParse.message; }
-            }
-        } catch (e) {
-            error = e.message;
-        }
-        if (!data) {
-            if (error) { legacyCache.value = { legacy: true, legacyError: error }; }
-            return legacyCache.value;
-        }
+        var r;
+        try { r = legacyRead(doc); } catch (e) { r = { data: null, diag: "errore: " + e.message }; }
+        legacyCache.diag = r.diag;
+        var data = r.data;
+        if (!data) { return null; }
 
         var st = {}, PT_MM = 25.4 / 72;
         if (typeof data.offset === "number") { st.offsetMm = Math.round(data.offset * PT_MM * 100) / 100; }
@@ -751,8 +775,9 @@ var IQ = (function () {
             else if (/^(punt|point)/.test(u)) { st.unit = "pt"; }
             else if (/^pix/.test(u)) { st.unit = "px"; }
         }
-        var color = swatchHex(doc, data.lineColorName) || swatchHex(doc, data.textColorName);
-        if (color) { st.color = color; }
+        var lineColor = swatchHex(doc, data.lineColorName), textColor = swatchHex(doc, data.textColorName);
+        if (lineColor || textColor) { st.color = lineColor || textColor; }
+        if (textColor) { st.textColor = textColor; }
         st.legacy = true;
         legacyCache.value = st;
         return st;
@@ -781,7 +806,7 @@ var IQ = (function () {
             var groups = selectedQuoteGroups(doc), i;
             if (groups.length === 0) { return "ERR:Seleziona una o più quote da aggiornare."; }
             var o = merge(opts);
-            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), count: 0 };
+            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
 
             for (i = 0; i < groups.length; i++) {
                 var g = groups[i], spec = upgradeSpec(readQuoteData(g));
@@ -918,7 +943,20 @@ var IQ = (function () {
         }
     }
 
+    // Caricamento esplicito (pulsante nel pannello) con la diagnosi di cosa è stato trovato.
+    function loadLegacy() {
+        try {
+            if (app.documents.length === 0) { return "ERR:Nessun documento aperto."; }
+            var st = legacyStyle(app.activeDocument, true);
+            if (!st) { return "ERR:Impostazioni del vecchio sistema non trovate: " + legacyCache.diag + "."; }
+            return "OK:" + toJSON(st);
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    }
+
     return {
+        version: VERSION, loadLegacy: loadLegacy,
         quote: quote, update: update, styleOfSelection: styleOfSelection, state: state,
         clearAll: clearAll, toggleVisible: toggleVisible, setLocked: setLocked,
         exportPresets: exportPresets, importPresets: importPresets

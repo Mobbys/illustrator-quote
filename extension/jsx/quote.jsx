@@ -38,12 +38,13 @@ var IQ = (function () {
         strokeWidth: 0.5,    // pt
         endSize: 5,          // dimensione terminali in pt
         endStyle: "arrow",   // arrow | tick | dot | none
-        color: "#E6007E"
+        color: "#E6007E",    // colore di linee e frecce
+        textColor: ""        // colore del testo ("" = come le linee)
     };
 
     // Opzioni che definiscono lo stile di una quota (salvate dentro ogni quota).
     var STYLE_KEYS = ["unit", "decimals", "comma", "showUnit", "scale", "sizeFactor", "offsetMm", "gapMm",
-        "extMm", "textGapMm", "fontSize", "strokeWidth", "endSize", "endStyle", "color"];
+        "extMm", "textGapMm", "fontSize", "strokeWidth", "endSize", "endStyle", "color", "textColor"];
     var NOTE_PREFIX = "IQ1:";
     var LINE_NAME = "IQ_line";
 
@@ -257,7 +258,7 @@ var IQ = (function () {
         tf.contents = text;
         var attrs = tf.textRange.characterAttributes;
         attrs.size = ctx.d.font;
-        attrs.fillColor = ctx.color;
+        attrs.fillColor = ctx.textColor;
         var b0 = tf.geometricBounds;
         var h = b0[1] - b0[3];
         // angolo leggibile: tra -90 (escluso) e 90 gradi
@@ -561,7 +562,7 @@ var IQ = (function () {
             var rects = [];
             for (i = 0; i < items.length; i++) { rects.push(rect(boundsOf(items[i], o.useVisible))); }
 
-            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), count: 0 };
+            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
 
             if (o.mode === "all") {
                 quoteRect(unionRect(rects), ctx);
@@ -751,8 +752,9 @@ var IQ = (function () {
             else if (/^(punt|point)/.test(u)) { st.unit = "pt"; }
             else if (/^pix/.test(u)) { st.unit = "px"; }
         }
-        var color = swatchHex(doc, data.lineColorName) || swatchHex(doc, data.textColorName);
-        if (color) { st.color = color; }
+        var lineColor = swatchHex(doc, data.lineColorName), textColor = swatchHex(doc, data.textColorName);
+        if (lineColor || textColor) { st.color = lineColor || textColor; }
+        if (textColor) { st.textColor = textColor; }
         st.legacy = true;
         legacyCache.value = st;
         return st;
@@ -781,7 +783,7 @@ var IQ = (function () {
             var groups = selectedQuoteGroups(doc), i;
             if (groups.length === 0) { return "ERR:Seleziona una o più quote da aggiornare."; }
             var o = merge(opts);
-            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), count: 0 };
+            var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
 
             for (i = 0; i < groups.length; i++) {
                 var g = groups[i], spec = upgradeSpec(readQuoteData(g));

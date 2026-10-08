@@ -77,12 +77,18 @@
   <section>
     <h2>Stile</h2>
     <div class="quick">
-      <input type="color" id="color" title="Colore delle quote">
-      <input type="number" id="sizeFactor" min="0.05" step="0.1" title="Moltiplicatore: scala testo, tratto, frecce e distanze">
+      <label class="swatch" title="Colore di linee e frecce"><span>Linee</span><input type="color" id="color"></label>
+      <label class="swatch" title="Colore del testo"><span>Testo</span><input type="color" id="textColor"></label>
+      <label class="factor-field" title="Moltiplicatore: scala testo, tratto, frecce e distanze"><span>×</span><input type="number" id="sizeFactor" min="0.05" step="0.1"></label>
+    </div>
+    <div class="factors">
       <button class="small" data-factor="0.5">×0,5</button>
       <button class="small" data-factor="1">×1</button>
       <button class="small" data-factor="2">×2</button>
       <button class="small" data-factor="5">×5</button>
+      <button class="small" data-factor="10">×10</button>
+      <button class="small" data-factor="20">×20</button>
+      <button class="small" data-factor="30">×30</button>
     </div>
     <details id="styleMore">
       <summary>Altre opzioni di stile</summary>

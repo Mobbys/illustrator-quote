@@ -26,9 +26,33 @@ VIAddVersionKey "FileVersion" "${VERSION}"
 VIAddVersionKey "LegalCopyright" "Mobbys"
 
 Var ScriptMissing
+Var ScriptCopied
 
-; Esegue ACTION ("copy" o "delete") sullo script Quota.jsx in ogni cartella Presets\<lingua>\Scripts
-; delle versioni di Illustrator installate.
+; Esegue ACTION ("copy" o "delete") sullo script Quota.jsx in ogni cartella Presets\<lingua>\<script>
+; delle versioni di Illustrator installate. Il nome della cartella dipende dalla lingua
+; (Scripts, Script in italiano, Skripten in tedesco...), quindi si cercano "Script*" e "Skript*".
+!macro ScriptDirs ACTION PATTERN ID
+  FindFirst $4 $5 "$PROGRAMFILES64\Adobe\$1\Presets\$3\${PATTERN}"
+  ${ID}_loop:
+    StrCmp $5 "" ${ID}_done
+    IfFileExists "$PROGRAMFILES64\Adobe\$1\Presets\$3\$5\*.*" 0 ${ID}_next
+      ClearErrors
+      !if "${ACTION}" == "copy"
+        CopyFiles /SILENT "$INSTDIR\script\Quota.jsx" "$PROGRAMFILES64\Adobe\$1\Presets\$3\$5"
+        IfErrors 0 +3
+          StrCpy $ScriptMissing "1"
+          Goto ${ID}_next
+        StrCpy $ScriptCopied "1"
+      !else
+        Delete "$PROGRAMFILES64\Adobe\$1\Presets\$3\$5\Quota.jsx"
+      !endif
+    ${ID}_next:
+    FindNext $4 $5
+    Goto ${ID}_loop
+  ${ID}_done:
+  FindClose $4
+!macroend
+
 !macro ScriptFolders ACTION
   FindFirst $0 $1 "$PROGRAMFILES64\Adobe\Adobe Illustrator*"
   ${ACTION}_loop:
@@ -38,15 +62,8 @@ Var ScriptMissing
       StrCmp $3 "" ${ACTION}_done2
       StrCmp $3 "." ${ACTION}_next2
       StrCmp $3 ".." ${ACTION}_next2
-      IfFileExists "$PROGRAMFILES64\Adobe\$1\Presets\$3\Scripts\*.*" 0 ${ACTION}_next2
-        ClearErrors
-        !if "${ACTION}" == "copy"
-          CopyFiles /SILENT "$INSTDIR\script\Quota.jsx" "$PROGRAMFILES64\Adobe\$1\Presets\$3\Scripts"
-          IfErrors 0 +2
-            StrCpy $ScriptMissing "1"
-        !else
-          Delete "$PROGRAMFILES64\Adobe\$1\Presets\$3\Scripts\Quota.jsx"
-        !endif
+      !insertmacro ScriptDirs ${ACTION} "Script*" ${ACTION}_s
+      !insertmacro ScriptDirs ${ACTION} "Skript*" ${ACTION}_k
       ${ACTION}_next2:
       FindNext $2 $3
       Goto ${ACTION}_loop2
@@ -82,7 +99,10 @@ Section "Install"
 
   ; script per la scorciatoia da tastiera (serve l'amministratore; se manca il pannello funziona comunque)
   StrCpy $ScriptMissing ""
+  StrCpy $ScriptCopied ""
   !insertmacro ScriptFolders "copy"
+  StrCmp $ScriptCopied "1" +2 0
+    StrCpy $ScriptMissing "1"
 
   ; disinstallazione da Impostazioni > App
   WriteUninstaller "$INSTDIR\uninstall.exe"
@@ -96,7 +116,7 @@ SectionEnd
 
 Function .onInstSuccess
   StrCmp $ScriptMissing "1" 0 +3
-    MessageBox MB_OK|MB_ICONINFORMATION "Fatto! Apri Illustrator e scegli Finestra > Estensioni > Quote.$\r$\n$\r$\nLo script Quota per la scorciatoia da tastiera non è stato installato: servono i permessi di amministratore."
+    MessageBox MB_OK|MB_ICONINFORMATION "Fatto! Apri Illustrator e scegli Finestra > Estensioni > Quote.$\r$\n$\r$\nLo script Quota per la scorciatoia da tastiera non è stato installato: usa il pulsante «Installa lo script Quota» nel pannello."
     Return
   MessageBox MB_OK|MB_ICONINFORMATION "Fatto! Apri Illustrator e scegli Finestra > Estensioni > Quote."
 FunctionEnd

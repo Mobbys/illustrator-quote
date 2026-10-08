@@ -479,7 +479,7 @@ var IQ = (function () {
     }
 
     function collectPoints(items) {
-        var out = [], i, types = {}, errors = [];
+        var out = [], i, types = {}, errors = [], states = {}, total = 0;
         function walk(it) {
             var j, pts;
             try {
@@ -488,7 +488,10 @@ var IQ = (function () {
                     // selectedPathPoints contiene solo i punti toccati dalla Selezione diretta
                     try { pts = it.selectedPathPoints; } catch (eSel) { pts = null; }
                     if (!pts || !pts.length) { pts = it.pathPoints; }
+                    total += it.pathPoints.length;
                     for (j = 0; j < pts.length; j++) {
+                        var key = String(pts[j].selected).replace("PathPointSelection.", "");
+                        states[key] = (states[key] || 0) + 1;
                         if (isSelectedPoint(pts[j])) {
                             var a = pts[j].anchor;
                             out.push([a[0], a[1]]);
@@ -513,7 +516,10 @@ var IQ = (function () {
         }
         var t = [], k2;
         for (k2 in types) { if (types.hasOwnProperty(k2)) { t.push(types[k2] + " " + k2); } }
+        var st = [], k3;
+        for (k3 in states) { if (states.hasOwnProperty(k3)) { st.push(states[k3] + " " + k3); } }
         pointsDiag = "trovati " + uniq.length + " punti in: " + (t.join(", ") || "nessun oggetto") +
+            "; punti totali " + total + (st.length ? " (" + st.join(", ") + ")" : "") +
             (errors.length ? "; errore: " + errors[0] : "");
         return uniq;
     }

@@ -140,3 +140,10 @@ details[open] summary { margin-bottom: 6px; }
 
 .version { font-size: 10px; opacity: .5; text-align: right; }
 #btnLegacy { width: 100%; }
+
+/* scrollbar sottile */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+::-webkit-scrollbar-button, ::-webkit-scrollbar-corner { display: none; background: transparent; }

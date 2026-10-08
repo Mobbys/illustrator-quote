@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.7";
+    var VERSION = "0.5.8";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -666,7 +666,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {} };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {} };
     }
 
     function parseCached(note) {
@@ -755,7 +755,10 @@ var IQ = (function () {
         return auto.items[id] || null;
     }
 
-    // Valori attuali degli oggetti collegati: bounds o posizione del punto. null se ne manca uno.
+    var GONE = "gone";   // l'oggetto collegato non esiste più
+
+    // Valori attuali degli oggetti collegati: bounds o posizione del punto.
+    // GONE se un oggetto è stato eliminato, null se non si riesce a leggerlo.
     function currentVals(doc, spec, tick) {
         var out = [], i, s, key, it, v;
         for (i = 0; i < spec.src.length; i++) {
@@ -764,6 +767,7 @@ var IQ = (function () {
             if (!tick.hasOwnProperty(key)) {
                 v = null;
                 it = resolveSrc(doc, s);
+                if (!it) { v = GONE; }
                 if (it) {
                     try {
                         if (s.k !== undefined) {
@@ -777,6 +781,7 @@ var IQ = (function () {
                 }
                 tick[key] = v;
             }
+            if (tick[key] === GONE) { return GONE; }
             if (!tick[key]) { return null; }
             out.push(tick[key]);
         }
@@ -870,7 +875,7 @@ var IQ = (function () {
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
-            var groups = layer.groupItems, tick = {}, todo = [], i, g, note, spec, q, u, vals, pos, prev, sig;
+            var groups = layer.groupItems, tick = {}, todo = [], gone = [], i, g, note, spec, q, u, vals, pos, prev, sig;
             for (i = 0; i < groups.length; i++) {
                 g = groups[i];
                 try { note = String(g.note || ""); } catch (eN) { continue; }
@@ -888,6 +893,16 @@ var IQ = (function () {
                 }
 
                 vals = currentVals(doc, spec, tick);
+                if (vals === GONE) {
+                    // oggetto eliminato: elimina anche la quota (confermato al controllo successivo).
+                    // Se la quota ricompare (Ctrl+Z) dopo che l'abbiamo tolta, la lasciamo stare.
+                    if (auto.removed[q]) { continue; }
+                    if (!force && !auto.gone[q]) { auto.gone[q] = true; continue; }
+                    auto.removed[q] = true;
+                    gone.push(g);
+                    continue;
+                }
+                delete auto.gone[q];
                 if (!vals) { continue; }
                 if (sameVals(spec, vals)) {
                     auto.pos[q] = pos;   // posizione di riferimento della quota con l'oggetto invariato
@@ -904,11 +919,14 @@ var IQ = (function () {
                 prev = auto.pos[q];
                 todo.push({ g: g, note: note, vals: vals, step: (pos && prev) ? vsub(pos, prev) : [0, 0] });
             }
-            if (todo.length === 0) { return "OK:0"; }
+            if (todo.length === 0 && gone.length === 0) { return "OK:0"; }
 
             var wasLocked = layer.locked, wasHidden = !layer.visible, count = 0, t, o, ctx, moved;
             if (wasLocked) { layer.locked = false; }
             if (wasHidden) { layer.visible = true; }
+            for (i = 0; i < gone.length; i++) {
+                try { gone[i].remove(); count++; } catch (eR) { /* quota bloccata */ }
+            }
             for (i = 0; i < todo.length; i++) {
                 t = todo[i];
                 try {

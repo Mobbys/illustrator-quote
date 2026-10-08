@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <title>Quote</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="info" class="info">Seleziona uno o più oggetti</div>
+
+  <section>
+    <h2>Cosa quotare</h2>
+    <div class="seg" id="mode">
+      <button data-value="each" title="Larghezza e altezza di ogni oggetto">Ogni oggetto</button>
+      <button data-value="all" title="Ingombro totale della selezione">Selezione</button>
+      <button data-value="gaps" title="Distanze libere tra oggetti vicini">Distanze</button>
+    </div>
+    <div class="sides">
+      <label><input type="checkbox" id="top"> Sopra</label>
+      <label><input type="checkbox" id="bottom"> Sotto</label>
+      <label><input type="checkbox" id="left"> Sinistra</label>
+      <label><input type="checkbox" id="right"> Destra</label>
+    </div>
+    <label class="check"><input type="checkbox" id="useVisible"> Includi spessore tratto</label>
+  </section>
+
+  <button id="btnQuote" class="primary">Quota selezione</button>
+
+  <section>
+    <h2>Misure</h2>
+    <div class="row">
+      <label>Unità
+        <select id="unit">
+          <option value="mm">mm</option>
+          <option value="cm">cm</option>
+          <option value="in">in</option>
+          <option value="pt">pt</option>
+          <option value="px">px</option>
+        </select>
+      </label>
+      <label>Decimali <input type="number" id="decimals" min="0" max="4" step="1"></label>
+      <label>Scala 1: <input type="number" id="scale" min="0.0001" step="any"></label>
+    </div>
+    <label class="check"><input type="checkbox" id="comma"> Virgola come separatore</label>
+    <label class="check"><input type="checkbox" id="showUnit"> Mostra unità nel testo</label>
+  </section>
+
+  <section>
+    <h2>Stile</h2>
+    <div class="row">
+      <label>Distanza (mm) <input type="number" id="offsetMm" min="0" step="0.5"></label>
+      <label>Stacco (mm) <input type="number" id="gapMm" min="0" step="0.5"></label>
+    </div>
+    <div class="row">
+      <label>Testo (pt) <input type="number" id="fontSize" min="1" step="0.5"></label>
+      <label>Tratto (pt) <input type="number" id="strokeWidth" min="0.1" step="0.1"></label>
+    </div>
+    <div class="row">
+      <label>Terminali
+        <select id="endStyle">
+          <option value="arrow">Frecce</option>
+          <option value="tick">Barrette</option>
+          <option value="dot">Punti</option>
+          <option value="none">Nessuno</option>
+        </select>
+      </label>
+      <label>Dim. (pt) <input type="number" id="endSize" min="1" step="0.5"></label>
+      <label>Colore <input type="color" id="color"></label>
+    </div>
+  </section>
+
+  <div class="actions">
+    <button id="btnToggle">Mostra/Nascondi quote</button>
+    <button id="btnClear" class="danger">Elimina tutte le quote</button>
+  </div>
+
+  <div id="status" class="status"></div>
+
+  <script src="js/main.js"></script>
+</body>
+</html>

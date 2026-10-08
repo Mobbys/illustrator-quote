@@ -36,8 +36,9 @@ Disinstallare: su Windows da **Impostazioni > App**; su Mac eliminando la cartel
 ## Pubblicare una nuova versione
 
 1. Aggiorna `ExtensionBundleVersion` (e `Version`) in `extension/CSXS/manifest.xml`, per esempio `0.2.0`.
-2. Crea e pubblica il tag corrispondente: `git tag v0.2.0 && git push origin v0.2.0`.
-3. GitHub Actions crea gli installer Windows e Mac e li pubblica in una nuova Release, pronta da condividere.
+2. Porta la modifica su `main` (merge della PR).
+3. GitHub Actions crea gli installer Windows e Mac e li pubblica nella Release `v0.2.0`, pronta da condividere.
+   Se non cambi la versione, la Release esistente viene aggiornata con i nuovi installer.
 
 Ad ogni push gli installer vengono comunque generati e si trovano tra gli *artifact* della scheda **Actions**, utili per provarli prima di pubblicare.
 

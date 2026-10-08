@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.5.3";
+  var VERSION = "0.5.4";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -411,6 +411,12 @@
       save(s);
       call("quote", s, function (res) {
         status(res, function (n) { return n === "0" ? "Nessuna quota da disegnare." : n + (n === "1" ? " quota aggiunta." : " quote aggiunte."); });
+        lastState = null;
+      });
+    });
+    $("btnRefresh").addEventListener("click", function () {
+      call("autoUpdate", true, function (res) {
+        status(res, function (n) { return n === "0" ? "Le quote sono già aggiornate." : n + (n === "1" ? " quota aggiornata." : " quote aggiornate."); });
         lastState = null;
       });
     });

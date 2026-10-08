@@ -1,0 +1,61 @@
+:root {
+  --bg: #323232;
+  --fg: #e6e6e6;
+  --muted: #a0a0a0;
+  --field: #1e1e1e;
+  --border: #4a4a4a;
+  --accent: #2d8ceb;
+  --danger: #d9534f;
+}
+body.light {
+  --fg: #222;
+  --muted: #666;
+  --field: #fff;
+  --border: #b4b4b4;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 11px/1.4 "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 8px 10px 12px;
+  user-select: none;
+}
+section { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--border); }
+h2 { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 6px; font-weight: 600; }
+.info { padding: 6px 8px; background: var(--field); border: 1px solid var(--border); border-radius: 3px; min-height: 28px; }
+.row { display: flex; gap: 6px; margin-bottom: 6px; }
+.row > label { flex: 1; display: flex; flex-direction: column; gap: 2px; color: var(--muted); min-width: 0; }
+.check { display: block; margin: 4px 0; }
+.sides { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin: 8px 0 4px; }
+input[type=number], select {
+  width: 100%;
+  background: var(--field);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 3px 4px;
+  font: inherit;
+}
+input[type=color] { width: 100%; height: 22px; padding: 0; border: 1px solid var(--border); background: var(--field); }
+button {
+  font: inherit;
+  color: var(--fg);
+  background: var(--field);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.primary { width: 100%; margin-top: 10px; padding: 8px; background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+button.danger:hover { border-color: var(--danger); color: var(--danger); }
+.seg { display: flex; }
+.seg button { flex: 1; border-radius: 0; margin-left: -1px; padding: 5px 2px; }
+.seg button:first-child { border-radius: 3px 0 0 3px; margin-left: 0; }
+.seg button:last-child { border-radius: 0 3px 3px 0; }
+.seg button.on { background: var(--accent); border-color: var(--accent); color: #fff; position: relative; }
+.actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
+.status { margin-top: 8px; min-height: 16px; color: var(--muted); }
+.status.error { color: var(--danger); }

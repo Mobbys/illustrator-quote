@@ -1,0 +1,4 @@
+#!/bin/bash
+# Rimuove una versione precedente del pannello prima di installare quella nuova.
+rm -rf "/Library/Application Support/Adobe/CEP/extensions/com.mobbys.illustratorquote"
+exit 0

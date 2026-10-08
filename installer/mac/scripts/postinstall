@@ -1,0 +1,9 @@
+#!/bin/bash
+# Permette a Illustrator di caricare l'estensione (CEP 8-13) per l'utente che sta installando.
+CONSOLE_USER=$(stat -f%Su /dev/console)
+for v in 8 9 10 11 12 13; do
+  if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
+    sudo -u "$CONSOLE_USER" defaults write "com.adobe.CSXS.$v" PlayerDebugMode 1
+  fi
+done
+exit 0

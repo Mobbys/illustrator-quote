@@ -56,6 +56,22 @@
     <label class="check"><input type="checkbox" id="showUnit"> Mostra unità nel testo</label>
   </section>
 
+  <div class="multiplier">
+    <div class="quick">
+      <span class="label">Moltiplicatore</span>
+      <label class="factor-field" title="Moltiplicatore: scala testo, tratto, frecce e distanze"><span>×</span><input type="number" id="sizeFactor" min="1" step="1"></label>
+    </div>
+    <div class="factors">
+      <button class="small" data-factor="0.5">×0,5</button>
+      <button class="small" data-factor="1">×1</button>
+      <button class="small" data-factor="2">×2</button>
+      <button class="small" data-factor="5">×5</button>
+      <button class="small" data-factor="10">×10</button>
+      <button class="small" data-factor="20">×20</button>
+      <button class="small" data-factor="30">×30</button>
+    </div>
+  </div>
+
   <button id="btnQuote" class="primary">Quota</button>
 
   <section>
@@ -83,7 +99,6 @@
     <div class="quick">
       <div class="swatch" title="Colore di linee e frecce"><span>Linee</span><button class="chip" data-color="color"></button><input type="hidden" id="color"></div>
       <div class="swatch" title="Colore del testo"><span>Testo</span><button class="chip" data-color="textColor"></button><input type="hidden" id="textColor"></div>
-      <label class="factor-field" title="Moltiplicatore: scala testo, tratto, frecce e distanze"><span>×</span><input type="number" id="sizeFactor" min="1" step="1"></label>
     </div>
     <div id="colorPop" class="color-pop" hidden>
       <div class="tabs" id="colorModel">
@@ -105,17 +120,6 @@
         <button id="btnColorDone" class="small">Fatto</button>
       </div>
     </div>
-    <div class="factors">
-      <button class="small" data-factor="0.5">×0,5</button>
-      <button class="small" data-factor="1">×1</button>
-      <button class="small" data-factor="2">×2</button>
-      <button class="small" data-factor="5">×5</button>
-      <button class="small" data-factor="10">×10</button>
-      <button class="small" data-factor="20">×20</button>
-      <button class="small" data-factor="30">×30</button>
-    </div>
-    <details id="styleMore">
-      <summary>Altre opzioni di stile</summary>
       <div class="row">
         <label>Distanza (mm) <input type="number" id="offsetMm" min="0" step="0.5"></label>
         <label>Stacco (mm) <input type="number" id="gapMm" min="0" step="0.5"></label>
@@ -136,7 +140,6 @@
         </label>
         <label>Dim. (pt) <input type="number" id="endSize" min="1" step="0.5"></label>
       </div>
-    </details>
   </section>
 
   <div class="actions">

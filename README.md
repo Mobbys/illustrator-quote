@@ -21,7 +21,7 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - **Aggiorna quote selezionate**: seleziona una o più quote, cambia lo stile nel pannello e premi il pulsante;
   le quote vengono ridisegnate mantenendo le misure (anche se le hai spostate a mano).
 - **Prendi stile**: copia nel pannello lo stile della quota selezionata.
-- **Preset di stile**: salva lo stile con un nome e riapplicalo con un clic. *Esporta/Importa* salvano i preset
+- **Preset di stile**: salva lo stile con un nome e riapplicalo con un clic (moltiplicatore, scala, unità e decimali restano quelli del pannello). *Esporta/Importa* salvano i preset
   in un file `.json` da passare ai colleghi. Salvataggio, esportazione, importazione e caricamento delle vecchie impostazioni sono in una sezione richiudibile.
 - **Colori in CMYK o RGB**: clic sul quadratino del colore per aprire il selettore colore di Illustrator. Nei documenti CMYK i colori CMYK sono usati esattamente come inseriti.
 - **Colori separati** per linee e testo; colori e moltiplicatore sempre a portata di mano; le altre opzioni di stile sono in una sezione richiudibile.

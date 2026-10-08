@@ -585,7 +585,7 @@ var IQ = (function () {
             if (o.mode === "points") {
                 pts = collectPoints(items);
                 if (pts.length < 2) { return "ERR:Seleziona almeno 2 punti con lo strumento Selezione diretta (A). [" + pointsDiag + "]"; }
-                if (o.aligned && pts.length !== 2) { return "ERR:Per la distanza diretta seleziona esattamente 2 punti."; }
+                if (o.aligned && pts.length !== 2) { return "ERR:Per la distanza diretta seleziona esattamente 2 punti. [" + pointsDiag + "]"; }
             }
 
             var rects = [];

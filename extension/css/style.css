@@ -152,3 +152,12 @@ details[open] summary { margin-bottom: 6px; }
 .multiplier { margin: 4px 0 8px; }
 .multiplier .label { color: var(--muted); }
 .quick { margin-bottom: 6px; }
+
+/* sezione Stile richiudibile: il titolo fa da interruttore */
+details.section-toggle { margin-top: 0; }
+details.section-toggle > summary { list-style: none; display: flex; align-items: center; gap: 4px; }
+details.section-toggle > summary::-webkit-details-marker { display: none; }
+details.section-toggle > summary h2 { margin: 0; }
+details.section-toggle > summary::before { content: "▸"; color: var(--muted); font-size: 10px; }
+details.section-toggle[open] > summary::before { content: "▾"; }
+details.section-toggle:hover > summary h2 { color: var(--fg); }

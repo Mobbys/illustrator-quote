@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.3";
+    var VERSION = "0.6.4";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -721,11 +721,14 @@ var IQ = (function () {
     // a ogni controllo, perché dopo un trascinamento quello ricordato può restare sulla posizione vecchia.
     function refreshFromSelection(doc) {
         var sel, seen = 0;
+        auto.selItems = {};
         try { sel = doc.selection; } catch (e) { return; }
         if (!sel || sel.typename === "TextRange") { return; }
         function visit(it) {
             if (seen++ > 300) { return; }
             var v, ids, j;
+            v = uuidOf(it);
+            if (v) { auto.selItems[v] = it; }
             try {
                 if (it.tags.length > 0) {
                     v = String(it.tags.getByName(SRC_TAG).value);
@@ -754,6 +757,8 @@ var IQ = (function () {
     // Oggetto collegato, sempre con un riferimento appena letto: quelli ricordati possono
     // restare fermi sulla posizione di prima dopo un trascinamento.
     function resolveSrc(doc, s) {
+        // prima l'oggetto selezionato: è il riferimento più fresco
+        if (s.u && auto.selItems && auto.selItems[s.u]) { return auto.selItems[s.u]; }
         if (s.u) {
             try {
                 var it = doc.getPageItemFromUuid(s.u);
@@ -907,6 +912,7 @@ var IQ = (function () {
     // Ridisegna le quote i cui oggetti sono cambiati. Chiamata dal pannello ogni secondo;
     // con force (tasto Aggiorna) lo fa subito, senza aspettare che l'oggetto stia fermo.
     function autoUpdate(force) {
+        force2 = !!force;
         try {
             if (app.documents.length === 0) { return "OK:0"; }
             var doc = app.activeDocument;
@@ -919,6 +925,7 @@ var IQ = (function () {
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
+            var diag = [], selU = force ? selectedUuid(doc) : null;
             var groups = layer.groupItems, tick = {}, todo = [], gone = [], i, g, note, spec, q, u, vals, pos, prev, sig, last;
             for (i = 0; i < groups.length; i++) {
                 g = groups[i];
@@ -944,6 +951,7 @@ var IQ = (function () {
                 }
 
                 vals = currentVals(doc, spec, tick);
+                if (force && diag.length < 3 && linkedToSel(spec, selU)) { diag.push(diagOf(doc, spec, vals)); }
                 if (vals === GONE) {
                     // oggetto eliminato: elimina anche la quota (confermato al controllo successivo).
                     // Se la quota ricompare (Ctrl+Z) dopo che l'abbiamo tolta, la lasciamo stare.
@@ -980,7 +988,7 @@ var IQ = (function () {
                 prev = auto.pos[q];
                 todo.push({ g: g, note: note, vals: vals, step: (pos && prev) ? vsub(pos, prev) : [0, 0] });
             }
-            if (todo.length === 0 && gone.length === 0) { return "OK:0"; }
+            if (todo.length === 0 && gone.length === 0) { return "OK:0" + diagText(diag); }
 
             var wasLocked = layer.locked, wasHidden = !layer.visible, count = 0, t, o, ctx, moved;
             if (wasLocked) { layer.locked = false; }
@@ -1007,14 +1015,57 @@ var IQ = (function () {
                         try { pos = t.g.position; auto.pos[spec.qid] = auto.lastPos[spec.qid] = [pos[0], pos[1]]; } catch (eP2) {}
                         count++;
                     }
-                } catch (eQ) { /* quota saltata */ }
+                } catch (eQ) { diag.push("errore: " + eQ.message); }
             }
             if (wasHidden) { layer.visible = false; }
             if (wasLocked) { layer.locked = true; }
-            return "OK:" + count;
+            return "OK:" + count + (count < todo.length + gone.length ? diagText(diag) : "");
         } catch (e) {
             return "ERR:" + e.message;
         }
+    }
+
+    // Riepilogo per capire perché una quota non si aggiorna (mostrato da Aggiorna).
+    function diagText(diag) { return force2 && diag.length ? "|" + diag.join(" / ") : ""; }
+    var force2 = false;
+
+    // uuid del primo oggetto selezionato (non quota); "" se non ha uuid, null se non c'è selezione
+    function selectedUuid(doc) {
+        try {
+            var sel = doc.selection;
+            if (sel && sel.length && sel.typename !== "TextRange" && !isOnQuoteLayer(sel[0])) { return uuidOf(sel[0]) || ""; }
+        } catch (e) {}
+        return null;
+    }
+
+    function linkedToSel(spec, selU) {
+        if (selU === null) { return false; }
+        if (selU === "") { return true; }
+        var i;
+        for (i = 0; i < spec.src.length; i++) { if (spec.src[i].u === selU) { return true; } }
+        return false;
+    }
+
+    function diagOf(doc, spec, vals) {
+        function r(a) { var o = [], k; for (k = 0; k < a.length; k++) { o.push(Math.round(a[k] * 10) / 10); } return o.join(","); }
+        var out = [], s = spec.src[0], it = null, t;
+        try { it = resolveSrc(doc, s); } catch (e1) {}
+        t = it ? String(it.typename) : "non trovato";
+        if (s.nt) { t += " senza tag"; }
+        if (!s.u) { t += " senza uuid"; }
+        out.push(t);
+        out.push("salvato " + r(oldVal(s)));
+        if (vals === GONE) { out.push("eliminato"); }
+        else if (!vals) { out.push("non leggibile"); }
+        else { out.push("ora " + r(vals[0])); }
+        // confronto con l'oggetto selezionato: se è lo stesso ma con misure diverse il riferimento è vecchio
+        try {
+            var sel = doc.selection;
+            if (sel && sel.length && sel.typename !== "TextRange" && !isOnQuoteLayer(sel[0])) {
+                out.push("selezione " + String(sel[0].typename) + " " + r(boundsOf(sel[0], spec.vis)) + (uuidOf(sel[0]) === s.u ? " (stesso uuid)" : " (uuid diverso)"));
+            }
+        } catch (e2) {}
+        return out.join(" ");
     }
 
     // ---------- API chiamata dal pannello ----------

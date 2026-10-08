@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.4.6";
+    var VERSION = "0.4.7";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -585,7 +585,7 @@ var IQ = (function () {
             if (o.mode === "points") {
                 pts = collectPoints(items);
                 if (pts.length < 2) { return "ERR:Seleziona almeno 2 punti con lo strumento Selezione diretta (A). [" + pointsDiag + "]"; }
-                if (o.aligned && pts.length !== 2) { return "ERR:Per la distanza diretta seleziona esattamente 2 punti."; }
+                if (o.aligned && pts.length !== 2) { return "ERR:Per la distanza diretta seleziona esattamente 2 punti. [" + pointsDiag + "]"; }
             }
 
             var rects = [];

@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.4.6";
+  var VERSION = "0.4.7";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -239,6 +239,14 @@
     return st;
   }
 
+  // I preset non toccano misure e moltiplicatore, che dipendono dal disegno su cui si lavora.
+  var NOT_IN_PRESET = ["sizeFactor", "scale", "unit", "decimals"];
+  function presetOf(style) {
+    var st = {}, k;
+    for (k in style) { if (style.hasOwnProperty(k) && NOT_IN_PRESET.indexOf(k) < 0) { st[k] = style[k]; } }
+    return st;
+  }
+
   // ---------- preset (salvati su questo computer, esportabili su file) ----------
 
   function loadPresets() {
@@ -422,7 +430,7 @@
       var name = $("presetList").value, p = loadPresets();
       $("btnPresetDelete").disabled = !name;
       if (name && p[name]) {
-        applyStyle(p[name]);
+        applyStyle(presetOf(p[name]));
         $("presetName").value = name;
         say("Preset “" + name + "” applicato.");
       }
@@ -432,7 +440,7 @@
       if (!name) { status("ERR:Scrivi un nome per il preset."); $("presetName").focus(); return; }
       var p = loadPresets();
       var existed = !!p[name];
-      p[name] = styleOf(read());
+      p[name] = presetOf(styleOf(read()));
       savePresets(p);
       renderPresets(name);
       say(existed ? "Preset “" + name + "” aggiornato." : "Preset “" + name + "” salvato.");

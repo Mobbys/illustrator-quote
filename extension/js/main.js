@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.4.3";
+  var VERSION = "0.4.4";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -485,6 +485,27 @@
         status(res, function (v) { return v === "1" ? "Quote visibili." : "Quote nascoste."; });
       });
     });
+
+    // Illustrator si tiene i tasti: chiedi di ricevere Invio quando il pannello è attivo.
+    if (cep && cep.registerKeyEventsInterest) {
+      var mac = /mac/i.test(navigator.platform);
+      try { cep.registerKeyEventsInterest(JSON.stringify(mac ? [{ keyCode: 36 }, { keyCode: 76 }] : [{ keyCode: 13 }])); } catch (eKeys) { /* ignora */ }
+    }
+
+    // Script File > Script > Quota per il tasto F
+    function refreshShortcut() {
+      call("shortcutScript", "", function (res) {
+        $("btnShortcut").textContent = res === "OK:1" ? "Script Quota installato ✓ (reinstalla)" : "Installa lo script Quota (per il tasto F)";
+      });
+    }
+    $("btnShortcut").addEventListener("click", function () {
+      var src = cep ? cep.getSystemPath("extension") + "/script/Quota.jsx" : "";
+      call("shortcutScript", src, function (res) {
+        status(res, function (t) { return t; });
+        refreshShortcut();
+      });
+    });
+    refreshShortcut();
 
     // Invio nel pannello = Quota (tranne nel nome del preset e nei campi colore)
     document.addEventListener("keydown", function (e) {

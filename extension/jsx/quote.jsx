@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.4.3";
+    var VERSION = "0.4.4";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -976,6 +976,48 @@ var IQ = (function () {
         }
     }
 
+    // Cartelle Presets/<lingua>/Scripts di questo Illustrator (menu File > Script).
+    function scriptFolders() {
+        var out = [], base = app.path.fsName, names = ["Presets", "Presets.localized"], i, j, k, locs, dir;
+        for (i = 0; i < names.length; i++) {
+            var presets = new Folder(base + "/" + names[i]);
+            if (!presets.exists) { continue; }
+            locs = presets.getFiles(function (f) { return f instanceof Folder; });
+            for (j = 0; j < locs.length; j++) {
+                var subs = ["Scripts", "Scripts.localized"];
+                for (k = 0; k < subs.length; k++) {
+                    dir = new Folder(locs[j].fsName + "/" + subs[k]);
+                    if (dir.exists) { out.push(dir); }
+                }
+            }
+        }
+        return out;
+    }
+
+    // Stato dello script Quota (src vuoto) oppure installazione copiando src in tutte le cartelle Script.
+    function shortcutScript(src) {
+        try {
+            var dirs = scriptFolders(), i, found = 0, copied = 0, err = "";
+            if (!dirs.length) { return "ERR:Cartella degli script di Illustrator non trovata in " + app.path.fsName + "."; }
+            for (i = 0; i < dirs.length; i++) {
+                var target = new File(dirs[i].fsName + "/Quota.jsx");
+                if (src) {
+                    if (new File(src).copy(target)) { copied++; } else { err = new File(src).error || "copia non riuscita"; }
+                }
+                if (target.exists) { found++; }
+            }
+            if (!src) { return "OK:" + (found ? "1" : "0"); }
+            if (!copied) {
+                return "ERR:Non riesco a copiare lo script in " + dirs[0].fsName + " (" + err +
+                    "). Su Windows serve l'amministratore: reinstalla rispondendo Sì alla richiesta di Windows, oppure copia a mano il file " +
+                    new File(src).fsName + " in quella cartella.";
+            }
+            return "OK:Script installato. Riavvia Illustrator: lo trovi in File > Script > Quota.";
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    }
+
     function importPresets() {
         try {
             var f = File.openDialog("Apri un file di preset delle quote", "Preset quote:*.json");
@@ -1025,6 +1067,6 @@ var IQ = (function () {
         version: VERSION, loadLegacy: loadLegacy, pickColor: pickColor,
         quote: quote, update: update, styleOfSelection: styleOfSelection, state: state,
         clearAll: clearAll, toggleVisible: toggleVisible, setLocked: setLocked,
-        exportPresets: exportPresets, importPresets: importPresets, saveSettings: saveSettings
+        exportPresets: exportPresets, importPresets: importPresets, saveSettings: saveSettings, shortcutScript: shortcutScript
     };
 }());

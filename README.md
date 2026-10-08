@@ -37,6 +37,7 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
   Per collegarlo a un tasto F: pannello **Azioni** > nuovo set e nuova azione con il tasto funzione desiderato (es. F5),
   ferma la registrazione, poi dal menu del pannello Azioni scegli **Inserisci voce di menu** e seleziona File > Script > Quota.
   Su Windows lo script viene copiato solo se l'installer ha i permessi di amministratore (Windows chiede conferma).
+  Il pulsante **Installa lo script Quota** nel pannello lo copia (o dice dove copiarlo) se manca.
 - Il pannello si può allungare liberamente.
 - Le impostazioni vengono ricordate tra una sessione e l'altra.
 

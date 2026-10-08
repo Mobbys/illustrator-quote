@@ -59,3 +59,7 @@ button.danger:hover { border-color: var(--danger); color: var(--danger); }
 .actions { display: flex; flex-direction: column; gap: 6px; margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--border); }
 .status { margin-top: 8px; min-height: 16px; color: var(--muted); }
 .status.error { color: var(--danger); }
+.pair { display: flex; gap: 6px; margin-top: 6px; }
+.pair button:first-child { flex: 1; }
+button:disabled { opacity: .45; cursor: default; }
+button:disabled:hover { border-color: var(--border); }

@@ -37,7 +37,49 @@ var IQ = (function () {
         color: "#E6007E"
     };
 
+    // Opzioni che definiscono lo stile di una quota (salvate dentro ogni quota).
+    var STYLE_KEYS = ["unit", "decimals", "comma", "showUnit", "scale", "offsetMm", "gapMm", "extMm",
+        "textGapMm", "fontSize", "strokeWidth", "endSize", "endStyle", "color"];
+    var NOTE_PREFIX = "IQ1:";
+    var LINE_NAME = "IQ_line";
+
     // ---------- utilità ----------
+
+    // JSON minimale (ExtendScript di Illustrator non ha l'oggetto JSON).
+    function toJSON(v) {
+        var i, k, parts;
+        if (v === null || v === undefined) { return "null"; }
+        if (typeof v === "number") { return isFinite(v) ? String(v) : "null"; }
+        if (typeof v === "boolean") { return v ? "true" : "false"; }
+        if (typeof v === "string") {
+            return '"' + v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\r/g, "\\r").replace(/\n/g, "\\n") + '"';
+        }
+        if (v instanceof Array) {
+            parts = [];
+            for (i = 0; i < v.length; i++) { parts.push(toJSON(v[i])); }
+            return "[" + parts.join(",") + "]";
+        }
+        parts = [];
+        for (k in v) { if (v.hasOwnProperty(k)) { parts.push(toJSON(k) + ":" + toJSON(v[k])); } }
+        return "{" + parts.join(",") + "}";
+    }
+
+    function pickStyle(o) {
+        var st = {}, i;
+        for (i = 0; i < STYLE_KEYS.length; i++) { st[STYLE_KEYS[i]] = o[STYLE_KEYS[i]]; }
+        return st;
+    }
+
+    // Legge i dati salvati in una quota; null se il gruppo non è una quota.
+    function readQuoteData(g) {
+        try {
+            var n = g.note;
+            if (!n || n.indexOf(NOTE_PREFIX) !== 0) { return null; }
+            return eval("(" + n.substr(NOTE_PREFIX.length) + ")");
+        } catch (e) {
+            return null;
+        }
+    }
 
     function merge(opts) {
         var o = {}, k;
@@ -203,16 +245,18 @@ var IQ = (function () {
      * Quota lineare generica.
      * axis: "h" misura lungo x, "v" misura lungo y.
      * a, b: { pos: coordinata lungo l'asse, edge: coordinata trasversale da cui parte il richiamo }
-     * lineAcross: coordinata trasversale della linea di quota
+     * ref: coordinata trasversale da cui si misura la distanza della linea di quota
      * dir: +1 / -1, verso esterno (dove stanno richiami e testo)
+     * g: gruppo esistente da riempire (aggiornamento) oppure null per crearne uno nuovo
      */
-    function drawDimension(axis, a, b, lineAcross, dir, ctx) {
+    function drawDimension(axis, a, b, ref, dir, ctx, g) {
         var o = ctx.o;
         var lo = Math.min(a.pos, b.pos), hi = Math.max(a.pos, b.pos);
         var dist = hi - lo;
         if (dist <= 0.0001) { return null; }
+        var lineAcross = ref + dir * mm(o.offsetMm);
 
-        var g = ctx.layer.groupItems.add();
+        if (!g) { g = ctx.layer.groupItems.add(); }
         var label = formatLength(dist, o);
         g.name = "Quota " + label;
 
@@ -227,7 +271,8 @@ var IQ = (function () {
             }
         }
 
-        addLine(g, [P(axis, lo, lineAcross), P(axis, hi, lineAcross)], ctx);
+        var main = addLine(g, [P(axis, lo, lineAcross), P(axis, hi, lineAcross)], ctx);
+        main.name = LINE_NAME;
 
         // se la quota è troppo corta le frecce vanno all'esterno
         var outside = (o.endStyle === "arrow" && dist < o.endSize * 2.5);
@@ -239,24 +284,32 @@ var IQ = (function () {
         addEnd(g, axis, hi, lineAcross, outside ? -1 : 1, ctx);
 
         addLabel(g, axis, (lo + hi) / 2, lineAcross, dir, label, ctx);
+
+        // salva geometria e stile: servono per aggiornare la quota e per
+        // ritrovare lo stile quando un collega apre il documento
+        g.note = NOTE_PREFIX + toJSON({
+            axis: axis, a: a, b: b, ref: ref, dir: dir,
+            line: P(axis, lo, lineAcross),
+            style: pickStyle(o)
+        });
         ctx.count++;
         return g;
     }
 
     // Larghezza/altezza di un rettangolo sui lati richiesti.
     function quoteRect(r, ctx) {
-        var o = ctx.o, off = mm(o.offsetMm);
+        var o = ctx.o;
         if (o.top) {
-            drawDimension("h", { pos: r.left, edge: r.top }, { pos: r.right, edge: r.top }, r.top + off, 1, ctx);
+            drawDimension("h", { pos: r.left, edge: r.top }, { pos: r.right, edge: r.top }, r.top, 1, ctx);
         }
         if (o.bottom) {
-            drawDimension("h", { pos: r.left, edge: r.bottom }, { pos: r.right, edge: r.bottom }, r.bottom - off, -1, ctx);
+            drawDimension("h", { pos: r.left, edge: r.bottom }, { pos: r.right, edge: r.bottom }, r.bottom, -1, ctx);
         }
         if (o.left) {
-            drawDimension("v", { pos: r.bottom, edge: r.left }, { pos: r.top, edge: r.left }, r.left - off, -1, ctx);
+            drawDimension("v", { pos: r.bottom, edge: r.left }, { pos: r.top, edge: r.left }, r.left, -1, ctx);
         }
         if (o.right) {
-            drawDimension("v", { pos: r.bottom, edge: r.right }, { pos: r.top, edge: r.right }, r.right + off, 1, ctx);
+            drawDimension("v", { pos: r.bottom, edge: r.right }, { pos: r.top, edge: r.right }, r.right, 1, ctx);
         }
     }
 
@@ -273,7 +326,7 @@ var IQ = (function () {
 
     // Distanze libere tra oggetti consecutivi (catena di quote).
     function quoteGaps(rects, ctx) {
-        var o = ctx.o, off = mm(o.offsetMm), all = unionRect(rects), i, a, b;
+        var o = ctx.o, all = unionRect(rects), i, a, b;
         var byX = rects.slice(0).sort(function (p, q) { return p.left - q.left; });
         var byY = rects.slice(0).sort(function (p, q) { return q.top - p.top; });
 
@@ -281,20 +334,20 @@ var IQ = (function () {
             a = byX[i]; b = byX[i + 1];
             if (b.left - a.right <= 0) { continue; }
             if (o.top) {
-                drawDimension("h", { pos: a.right, edge: a.top }, { pos: b.left, edge: b.top }, all.top + off, 1, ctx);
+                drawDimension("h", { pos: a.right, edge: a.top }, { pos: b.left, edge: b.top }, all.top, 1, ctx);
             }
             if (o.bottom) {
-                drawDimension("h", { pos: a.right, edge: a.bottom }, { pos: b.left, edge: b.bottom }, all.bottom - off, -1, ctx);
+                drawDimension("h", { pos: a.right, edge: a.bottom }, { pos: b.left, edge: b.bottom }, all.bottom, -1, ctx);
             }
         }
         for (i = 0; i < byY.length - 1; i++) {
             a = byY[i]; b = byY[i + 1];
             if (a.bottom - b.top <= 0) { continue; }
             if (o.left) {
-                drawDimension("v", { pos: b.top, edge: b.left }, { pos: a.bottom, edge: a.left }, all.left - off, -1, ctx);
+                drawDimension("v", { pos: b.top, edge: b.left }, { pos: a.bottom, edge: a.left }, all.left, -1, ctx);
             }
             if (o.right) {
-                drawDimension("v", { pos: b.top, edge: b.right }, { pos: a.bottom, edge: a.right }, all.right + off, 1, ctx);
+                drawDimension("v", { pos: b.top, edge: b.right }, { pos: a.bottom, edge: a.right }, all.right, 1, ctx);
             }
         }
     }
@@ -339,21 +392,113 @@ var IQ = (function () {
         }
     }
 
-    // Restituisce larghezza e altezza della selezione (per l'anteprima nel pannello).
-    function measure(opts) {
-        try {
-            if (app.documents.length === 0) { return ""; }
-            var doc = app.activeDocument, o = merge(opts), sel = doc.selection, rects = [], i;
-            if (!sel || sel.length === 0 || sel.typename === "TextRange") { return ""; }
-            for (i = 0; i < sel.length; i++) {
-                if (!isOnQuoteLayer(sel[i])) { rects.push(rect(boundsOf(sel[i], o.useVisible))); }
-            }
-            if (rects.length === 0) { return ""; }
-            var u = unionRect(rects);
-            return rects.length + "|" + formatLength(u.right - u.left, o) + "|" + formatLength(u.top - u.bottom, o);
-        } catch (e) {
-            return "";
+    // Risale dall'oggetto selezionato al gruppo della quota che lo contiene.
+    function quoteGroupOf(item) {
+        var it = item;
+        while (it && it.typename !== "Layer" && it.typename !== "Document") {
+            if (it.typename === "GroupItem" && readQuoteData(it)) { return it; }
+            it = it.parent;
         }
+        return null;
+    }
+
+    function selectedQuoteGroups(doc) {
+        var sel = doc.selection, out = [], i, j, g, dup;
+        if (!sel || sel.typename === "TextRange") { return out; }
+        for (i = 0; i < sel.length; i++) {
+            g = quoteGroupOf(sel[i]);
+            if (!g) { continue; }
+            dup = false;
+            for (j = 0; j < out.length; j++) { if (out[j] === g) { dup = true; break; } }
+            if (!dup) { out.push(g); }
+        }
+        return out;
+    }
+
+    // Stile della quota più recente del documento (null se non ci sono quote).
+    function documentStyle(doc) {
+        var layer = getQuoteLayer(doc, false), i, d;
+        if (!layer) { return null; }
+        for (i = 0; i < layer.groupItems.length && i < 20; i++) {
+            d = readQuoteData(layer.groupItems[i]);
+            if (d && d.style) { return d.style; }
+        }
+        return null;
+    }
+
+    // Ridisegna le quote selezionate con il nuovo stile, mantenendo le misure.
+    function update(opts) {
+        try {
+            if (app.documents.length === 0) { return "ERR:Nessun documento aperto."; }
+            var doc = app.activeDocument;
+            var groups = selectedQuoteGroups(doc), i;
+            if (groups.length === 0) { return "ERR:Seleziona una o più quote da aggiornare."; }
+            var layer = getQuoteLayer(doc, true);
+            var base = merge(opts), k;
+            var ctx = { o: base, doc: doc, layer: layer, color: makeColor(doc, base.color), count: 0 };
+
+            for (i = 0; i < groups.length; i++) {
+                var g = groups[i], d = readQuoteData(g);
+                // se la quota è stata spostata a mano, sposta anche la geometria salvata
+                var dx = 0, dy = 0;
+                try {
+                    var line = g.pathItems.getByName(LINE_NAME);
+                    var p0 = line.pathPoints[0].anchor;
+                    dx = p0[0] - d.line[0];
+                    dy = p0[1] - d.line[1];
+                } catch (e1) {}
+                var dAlong = d.axis === "h" ? dx : dy, dAcross = d.axis === "h" ? dy : dx;
+                var a = { pos: d.a.pos + dAlong, edge: d.a.edge + dAcross };
+                var b = { pos: d.b.pos + dAlong, edge: d.b.edge + dAcross };
+
+                while (g.pageItems.length > 0) { g.pageItems[0].remove(); }
+                drawDimension(d.axis, a, b, d.ref + dAcross, d.dir, ctx, g);
+                // in cima al livello: diventa lo stile di riferimento del documento
+                try { g.zOrder(ZOrderMethod.BRINGTOFRONT); } catch (e3) {}
+            }
+            try { doc.selection = groups; } catch (e2) {}
+            app.redraw();
+            return "OK:" + ctx.count;
+        } catch (e) {
+            return "ERR:" + e.message + (e.line ? " (riga " + e.line + ")" : "");
+        }
+    }
+
+    // Stile della prima quota selezionata (contagocce).
+    function styleOfSelection() {
+        try {
+            if (app.documents.length === 0) { return "ERR:Nessun documento aperto."; }
+            var groups = selectedQuoteGroups(app.activeDocument);
+            if (groups.length === 0) { return "ERR:Seleziona una quota."; }
+            return "OK:" + toJSON(readQuoteData(groups[0]).style);
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    }
+
+    // Stato per il pannello: documento attivo, misure della selezione, quote selezionate,
+    // stile salvato nel documento. Restituisce JSON.
+    function state(opts) {
+        var res = { doc: "", count: 0, w: "", h: "", quotes: 0, docStyle: null };
+        try {
+            if (app.documents.length === 0) { return toJSON(res); }
+            var doc = app.activeDocument, o = merge(opts), sel = doc.selection, rects = [], i;
+            res.doc = doc.name;
+            res.docStyle = documentStyle(doc);
+            if (sel && sel.length > 0 && sel.typename !== "TextRange") {
+                res.quotes = selectedQuoteGroups(doc).length;
+                for (i = 0; i < sel.length; i++) {
+                    if (!isOnQuoteLayer(sel[i])) { rects.push(rect(boundsOf(sel[i], o.useVisible))); }
+                }
+            }
+            if (rects.length > 0) {
+                var u = unionRect(rects);
+                res.count = rects.length;
+                res.w = formatLength(u.right - u.left, o);
+                res.h = formatLength(u.top - u.bottom, o);
+            }
+        } catch (e) {}
+        return toJSON(res);
     }
 
     function clearAll() {
@@ -389,5 +534,5 @@ var IQ = (function () {
         }
     }
 
-    return { quote: quote, measure: measure, clearAll: clearAll, toggleVisible: toggleVisible };
+    return { quote: quote, update: update, styleOfSelection: styleOfSelection, state: state, clearAll: clearAll, toggleVisible: toggleVisible };
 }());

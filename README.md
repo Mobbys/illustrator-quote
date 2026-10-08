@@ -13,6 +13,12 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
 - Funziona con qualsiasi oggetto (tracciati, gruppi, testi, immagini, simboli). Per i gruppi con maschera di ritaglio misura la maschera.
 - Opzione per includere lo spessore del tratto nella misura.
 - Le quote vanno nel livello **"Quote"**, ognuna in un gruppo: si possono spostare, nascondere o eliminare tutte con un clic.
+- **Lo stile resta nel documento**: ogni quota salva il proprio stile. Quando apri un file con delle quote,
+  il pannello riprende lo stile dell'ultima quota, così chi lavora sullo stesso file continua con lo stesso aspetto.
+- **Aggiorna quote selezionate**: seleziona una o più quote, cambia lo stile nel pannello e premi il pulsante;
+  le quote vengono ridisegnate mantenendo le misure (anche se le hai spostate a mano).
+- **Prendi stile**: copia nel pannello lo stile della quota selezionata.
+- Il pannello si può allungare liberamente.
 - Le impostazioni vengono ricordate tra una sessione e l'altra.
 
 ## Installazione (per tutti)

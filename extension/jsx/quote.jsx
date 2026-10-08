@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.4.2";
+    var VERSION = "0.4.3";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -960,6 +960,22 @@ var IQ = (function () {
         }
     }
 
+    // Copia delle impostazioni del pannello per lo script File > Script > Quota (scorciatoia da tastiera).
+    function saveSettings(json) {
+        try {
+            var dir = new Folder(Folder.userData + "/IllustratorQuote");
+            if (!dir.exists) { dir.create(); }
+            var f = new File(dir.fsName + "/settings.json");
+            f.encoding = "UTF-8";
+            f.open("w");
+            f.write(json);
+            f.close();
+            return "OK:";
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    }
+
     function importPresets() {
         try {
             var f = File.openDialog("Apri un file di preset delle quote", "Preset quote:*.json");
@@ -1009,6 +1025,6 @@ var IQ = (function () {
         version: VERSION, loadLegacy: loadLegacy, pickColor: pickColor,
         quote: quote, update: update, styleOfSelection: styleOfSelection, state: state,
         clearAll: clearAll, toggleVisible: toggleVisible, setLocked: setLocked,
-        exportPresets: exportPresets, importPresets: importPresets
+        exportPresets: exportPresets, importPresets: importPresets, saveSettings: saveSettings
     };
 }());

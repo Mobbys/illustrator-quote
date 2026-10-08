@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.4.2";
+  var VERSION = "0.4.3";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -46,8 +46,17 @@
     return out;
   }
 
+  var syncTimer = null;
   function save(s) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* ignora */ }
+    // copia su disco per lo script File > Script > Quota (scorciatoia da tastiera)
+    if (syncTimer) { clearTimeout(syncTimer); }
+    syncTimer = setTimeout(function () {
+      syncTimer = null;
+      var copy = JSON.parse(JSON.stringify(s));
+      if (cep) { copy.engine = cep.getSystemPath("extension") + "/jsx/quote.jsx"; }
+      call("saveSettings", JSON.stringify(copy));
+    }, 500);
   }
 
   function read() {
@@ -344,6 +353,7 @@
 
   function init() {
     write(load());
+    save(read()); // aggiorna la copia per lo script Quota
     renderPresets();
     applyTheme();
 
@@ -474,6 +484,16 @@
       call("toggleVisible", undefined, function (res) {
         status(res, function (v) { return v === "1" ? "Quote visibili." : "Quote nascoste."; });
       });
+    });
+
+    // Invio nel pannello = Quota (tranne nel nome del preset e nei campi colore)
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.keyCode !== 13) { return; }
+      var t = e.target || {};
+      if (t.id === "presetName" || /^(cmyk|rgb)/.test(t.id || "") || t.tagName === "BUTTON" || t.tagName === "SUMMARY") { return; }
+      e.preventDefault();
+      if (t.blur) { t.blur(); }
+      $("btnQuote").click();
     });
 
     $("btnLegacy").addEventListener("click", function () {

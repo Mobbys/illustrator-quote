@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.2";
+    var VERSION = "0.6.3";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -598,13 +598,15 @@ var IQ = (function () {
 
     // Aggiunge un id al tag dell'oggetto. Un oggetto copiato si porta dietro gli id
     // vecchi, per questo ogni quotatura ne usa uno nuovo invece di riusarli.
+    // Restituisce { id, nt }: nt quando l'oggetto non accetta il tag (per esempio alcune
+    // immagini importate) e resta collegato solo con il suo uuid.
     function tagItem(ctx, item) {
         var i;
         if (!ctx.tagged) { ctx.tagged = []; }
         for (i = 0; i < ctx.tagged.length; i++) {
-            if (ctx.tagged[i].item === item) { return ctx.tagged[i].id; }
+            if (ctx.tagged[i].item === item) { return ctx.tagged[i].ref; }
         }
-        var id = ctx.callId + "_" + ctx.tagged.length, tag = null;
+        var id = ctx.callId + "_" + ctx.tagged.length, tag = null, ref = { id: id };
         try {
             try { tag = item.tags.getByName(SRC_TAG); } catch (eNo) { tag = null; }
             if (tag) {
@@ -615,16 +617,29 @@ var IQ = (function () {
                 tag.value = "," + id + ",";
             }
         } catch (e) {
-            return null;   // oggetto bloccato o non etichettabile: quota non collegata
+            // senza tag basta l'uuid; senza nessuno dei due la quota non si collega
+            if (!uuidOf(item)) { return null; }
+            ref.nt = 1;
         }
-        ctx.tagged.push({ item: item, id: id });
-        return id;
+        ctx.tagged.push({ item: item, ref: ref });
+        return ref;
+    }
+
+    function uuidOf(item) {
+        try { if (item.uuid) { return String(item.uuid); } } catch (e) { /* versione vecchia */ }
+        return null;
+    }
+
+    function srcOf(ref, item, extra) {
+        extra.id = ref.id;
+        if (ref.nt) { extra.nt = 1; }
+        return withUuid(extra, item);
     }
 
     function linkItem(ctx, item, r) {
-        var id = tagItem(ctx, item);
-        if (!id) { return null; }
-        ctx.src.push(withUuid({ id: id, b: [r.left, r.top, r.right, r.bottom] }, item));
+        var ref = tagItem(ctx, item);
+        if (!ref) { return null; }
+        ctx.src.push(srcOf(ref, item, { b: [r.left, r.top, r.right, r.bottom] }));
         return [ctx.src.length - 1];
     }
 
@@ -638,9 +653,9 @@ var IQ = (function () {
             }
         } catch (e) { k = -1; }
         if (k < 0) { return null; }
-        var id = tagItem(ctx, p.item);
-        if (!id) { return null; }
-        ctx.src.push(withUuid({ id: id, k: k, p: [p[0], p[1]] }, p.item));
+        var ref = tagItem(ctx, p.item);
+        if (!ref) { return null; }
+        ctx.src.push(srcOf(ref, p.item, { k: k, p: [p[0], p[1]] }));
         return [ctx.src.length - 1];
     }
 
@@ -689,6 +704,7 @@ var IQ = (function () {
         if (full) { auto.items = {}; auto.present = {}; }
         for (i = 0; i < all.length; i++) {
             it = all[i];
+            if (full) { v = uuidOf(it); if (v) { auto.present["u:" + v] = true; } }
             try {
                 if (it.tags.length === 0) { continue; }
                 v = String(it.tags.getByName(SRC_TAG).value);
@@ -730,7 +746,8 @@ var IQ = (function () {
 
     // Identificativo permanente dell'oggetto (Illustrator 2020 e successivi).
     function withUuid(src, item) {
-        try { if (item.uuid) { src.u = String(item.uuid); } } catch (e) { /* versione vecchia */ }
+        var u = uuidOf(item);
+        if (u) { src.u = u; }
         return src;
     }
 
@@ -743,6 +760,7 @@ var IQ = (function () {
                 if (it) { return it; }
             } catch (e) { /* oggetto eliminato o funzione non disponibile */ }
         }
+        if (s.nt) { return null; }   // senza tag non c'è altro modo di trovarlo
         return resolveItem(doc, s.id);
     }
 
@@ -766,7 +784,7 @@ var IQ = (function () {
     // Valori attuali degli oggetti collegati: bounds o posizione del punto.
     // GONE se un oggetto è stato eliminato, null se non si riesce a leggerlo.
     function currentVals(doc, spec, tick) {
-        var out = [], i, s, key, it, v;
+        var out = [], i, s, key, it, v, pk;
         for (i = 0; i < spec.src.length; i++) {
             s = spec.src[i];
             key = s.id + (s.k !== undefined ? "#" + s.k : (spec.vis ? "|v" : "|g"));
@@ -774,11 +792,12 @@ var IQ = (function () {
                 v = null;
                 // Illustrator può ancora "trovare" un oggetto eliminato (resta per l'annulla):
                 // conta la ricerca completa fatta quando il numero di oggetti è sceso.
-                if (auto.known[s.id] && auto.present && !auto.present[s.id]) {
+                pk = s.nt ? "u:" + s.u : s.id;
+                if (auto.known[pk] && auto.present && !auto.present[pk]) {
                     it = null;
                 } else {
                     it = resolveSrc(doc, s);
-                    if (it) { auto.known[s.id] = true; if (auto.present) { auto.present[s.id] = true; } }
+                    if (it) { auto.known[pk] = true; if (auto.present) { auto.present[pk] = true; } }
                 }
                 if (!it) { v = GONE; }
                 if (it) {

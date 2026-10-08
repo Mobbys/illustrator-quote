@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.3.2";
+    var VERSION = "0.4.0";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -39,7 +39,7 @@ var IQ = (function () {
         strokeWidth: 0.5,    // pt
         endSize: 5,          // dimensione terminali in pt
         endStyle: "arrow",   // arrow | tick | dot | none
-        color: "#E6007E",    // colore di linee e frecce
+        color: "cmyk(0,100,0,0)", // colore di linee e frecce ("#rrggbb" o "cmyk(c,m,y,k)")
         textColor: ""        // colore del testo ("" = come le linee)
     };
 
@@ -115,11 +115,34 @@ var IQ = (function () {
         return s;
     }
 
-    function makeColor(doc, hex) {
-        hex = String(hex || "#000000").replace("#", "");
-        if (hex.length === 3) { hex = hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2); }
-        var r = parseInt(hex.substr(0, 2), 16), g = parseInt(hex.substr(2, 2), 16), b = parseInt(hex.substr(4, 2), 16);
-        if (isNaN(r) || isNaN(g) || isNaN(b)) { r = g = b = 0; }
+    // Un colore è "#rrggbb" oppure "cmyk(c,m,y,k)" con valori 0-100.
+    function parseCmyk(v) {
+        var m = /^\s*cmyk\(([^)]*)\)\s*$/i.exec(String(v || ""));
+        if (!m) { return null; }
+        var p = m[1].split(","), out = [], i, n;
+        for (i = 0; i < 4; i++) {
+            n = parseFloat(p[i]);
+            out.push(isNaN(n) ? 0 : Math.max(0, Math.min(100, n)));
+        }
+        return out;
+    }
+
+    function makeColor(doc, value) {
+        var cmyk = parseCmyk(value), r, g, b;
+        if (cmyk) {
+            if (doc.documentColorSpace == DocumentColorSpace.CMYK) {
+                var cc = new CMYKColor();
+                cc.cyan = cmyk[0]; cc.magenta = cmyk[1]; cc.yellow = cmyk[2]; cc.black = cmyk[3];
+                return cc;
+            }
+            var kk = 1 - cmyk[3] / 100;
+            r = 255 * (1 - cmyk[0] / 100) * kk; g = 255 * (1 - cmyk[1] / 100) * kk; b = 255 * (1 - cmyk[2] / 100) * kk;
+        } else {
+            var hex = String(value || "#000000").replace("#", "");
+            if (hex.length === 3) { hex = hex.charAt(0) + hex.charAt(0) + hex.charAt(1) + hex.charAt(1) + hex.charAt(2) + hex.charAt(2); }
+            r = parseInt(hex.substr(0, 2), 16); g = parseInt(hex.substr(2, 2), 16); b = parseInt(hex.substr(4, 2), 16);
+            if (isNaN(r) || isNaN(g) || isNaN(b)) { r = g = b = 0; }
+        }
         if (doc.documentColorSpace == DocumentColorSpace.CMYK) {
             var rr = r / 255, gg = g / 255, bb = b / 255;
             var k = 1 - Math.max(rr, gg, bb);
@@ -135,7 +158,7 @@ var IQ = (function () {
             return c;
         }
         var rgb = new RGBColor();
-        rgb.red = r; rgb.green = g; rgb.blue = b;
+        rgb.red = Math.round(r); rgb.green = Math.round(g); rgb.blue = Math.round(b);
         return rgb;
     }
 
@@ -634,14 +657,16 @@ var IQ = (function () {
 
     function hex2(n) { n = Math.max(0, Math.min(255, Math.round(n))); return (n < 16 ? "0" : "") + n.toString(16); }
 
+    function r1(n) { return Math.round(n * 10) / 10; }
+    function cmykString(c) { return "cmyk(" + r1(c.cyan) + "," + r1(c.magenta) + "," + r1(c.yellow) + "," + r1(c.black) + ")"; }
+
     function colorToHex(c) {
         if (!c) { return null; }
         switch (c.typename) {
         case "RGBColor":
             return "#" + hex2(c.red) + hex2(c.green) + hex2(c.blue);
         case "CMYKColor":
-            var k = 1 - c.black / 100;
-            return "#" + hex2(255 * (1 - c.cyan / 100) * k) + hex2(255 * (1 - c.magenta / 100) * k) + hex2(255 * (1 - c.yellow / 100) * k);
+            return cmykString(c);
         case "GrayColor":
             var v = 255 * (1 - c.gray / 100);
             return "#" + hex2(v) + hex2(v) + hex2(v);
@@ -653,7 +678,7 @@ var IQ = (function () {
 
     function swatchHex(doc, name) {
         if (!name) { return null; }
-        if (/^(nero|black|registration|registro)$/i.test(name)) { return "#000000"; }
+        if (/^(nero|black|registration|registro)$/i.test(name)) { return "cmyk(0,0,0,100)"; }
         try { return colorToHex(doc.swatches.getByName(name).color); } catch (e) { return null; }
     }
 
@@ -943,6 +968,25 @@ var IQ = (function () {
         }
     }
 
+    // Selettore colore di Illustrator (ha i campi CMYK). Restituisce il colore scelto come stringa.
+    function pickColor(value) {
+        try {
+            var doc = app.documents.length ? app.activeDocument : null, start;
+            var cmyk = parseCmyk(value);
+            if (cmyk || !doc) {
+                start = new CMYKColor();
+                cmyk = cmyk || [0, 0, 0, 100];
+                start.cyan = cmyk[0]; start.magenta = cmyk[1]; start.yellow = cmyk[2]; start.black = cmyk[3];
+            } else {
+                start = makeColor(doc, value);
+            }
+            var c = app.showColorPicker(start);
+            return "OK:" + (colorToHex(c) || "");
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
+    }
+
     // Caricamento esplicito (pulsante nel pannello) con la diagnosi di cosa è stato trovato.
     function loadLegacy() {
         try {
@@ -956,7 +1000,7 @@ var IQ = (function () {
     }
 
     return {
-        version: VERSION, loadLegacy: loadLegacy,
+        version: VERSION, loadLegacy: loadLegacy, pickColor: pickColor,
         quote: quote, update: update, styleOfSelection: styleOfSelection, state: state,
         clearAll: clearAll, toggleVisible: toggleVisible, setLocked: setLocked,
         exportPresets: exportPresets, importPresets: importPresets

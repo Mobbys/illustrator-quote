@@ -10,7 +10,7 @@
     aligned: false, useVisible: false, lockLayer: false,
     unit: "mm", decimals: 1, scale: 1, comma: true, showUnit: true,
     sizeFactor: 1, offsetMm: 5, gapMm: 1, textGapMm: 1, fontSize: 8, strokeWidth: 0.5,
-    endStyle: "arrow", endSize: 5, color: "#e6007e", textColor: "#e6007e"
+    endStyle: "arrow", endSize: 5, color: "cmyk(0,100,0,0)", textColor: "cmyk(0,100,0,0)"
   };
   var BOOL = ["top", "bottom", "left", "right", "aligned", "useVisible", "lockLayer", "comma", "showUnit"];
   var NUM = ["decimals", "scale", "sizeFactor", "offsetMm", "gapMm", "textGapMm", "fontSize", "strokeWidth", "endSize"];
@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.3.2";
+  var VERSION = "0.4.0";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -69,6 +69,124 @@
     NUM.forEach(function (k) { $(k).value = s[k]; });
     TEXT.forEach(function (k) { $(k).value = s[k]; });
     setMode(s.mode);
+    paintChips();
+  }
+
+  // ---------- colori: "#rrggbb" oppure "cmyk(c,m,y,k)" ----------
+
+  function parseCmyk(v) {
+    var m = /^\s*cmyk\(([^)]*)\)\s*$/i.exec(String(v || ""));
+    if (!m) { return null; }
+    return m[1].split(",").slice(0, 4).map(function (x) {
+      var n = parseFloat(x);
+      return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+    });
+  }
+
+  function hex2(n) { n = Math.max(0, Math.min(255, Math.round(n))); return (n < 16 ? "0" : "") + n.toString(16); }
+
+  function toHex(v) {
+    var c = parseCmyk(v);
+    if (!c) { return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : "#000000"; }
+    var k = 1 - c[3] / 100;
+    return "#" + hex2(255 * (1 - c[0] / 100) * k) + hex2(255 * (1 - c[1] / 100) * k) + hex2(255 * (1 - c[2] / 100) * k);
+  }
+
+  function toCmyk(v) {
+    var c = parseCmyk(v);
+    if (c) { return c; }
+    var h = toHex(v), r = parseInt(h.substr(1, 2), 16) / 255, g = parseInt(h.substr(3, 2), 16) / 255, b = parseInt(h.substr(5, 2), 16) / 255;
+    var k = 1 - Math.max(r, g, b);
+    if (k >= 1) { return [0, 0, 0, 100]; }
+    return [(1 - r - k) / (1 - k), (1 - g - k) / (1 - k), (1 - b - k) / (1 - k), k].map(function (x) { return Math.round(x * 100); });
+  }
+
+  function cmykValue(c) { return "cmyk(" + c.join(",") + ")"; }
+
+  function colorLabel(v) {
+    var c = parseCmyk(v);
+    return c ? "C" + c[0] + " M" + c[1] + " Y" + c[2] + " K" + c[3] : toHex(v).toUpperCase();
+  }
+
+  var editingColor = null;
+
+  function paintChips() {
+    document.querySelectorAll("[data-color]").forEach(function (b) {
+      var v = $(b.getAttribute("data-color")).value;
+      b.style.background = toHex(v);
+      b.title = colorLabel(v);
+      b.classList.toggle("active", b.getAttribute("data-color") === editingColor);
+    });
+  }
+
+  function colorModel() {
+    try { return localStorage.getItem("illustratorQuote.colorModel") || "cmyk"; } catch (e) { return "cmyk"; }
+  }
+
+  function showColorFields() {
+    var v = $(editingColor).value, model = parseCmyk(v) ? "cmyk" : (/^#/.test(v) && colorModel() === "rgb" ? "rgb" : colorModel());
+    document.querySelectorAll("#colorModel button").forEach(function (b) {
+      b.classList.toggle("on", b.getAttribute("data-value") === model);
+    });
+    $("cmykFields").hidden = model !== "cmyk";
+    $("rgbFields").hidden = model !== "rgb";
+    var c = toCmyk(v);
+    ["cmykC", "cmykM", "cmykY", "cmykK"].forEach(function (id, i) { $(id).value = Math.round(c[i] * 10) / 10; });
+    $("rgbPick").value = toHex(v);
+    $("rgbHex").value = toHex(v).toUpperCase();
+  }
+
+  function setColor(v) {
+    $(editingColor).value = v;
+    save(read());
+    paintChips();
+  }
+
+  function openColor(key) {
+    editingColor = (editingColor === key) ? null : key;
+    $("colorPop").hidden = !editingColor;
+    paintChips();
+    if (editingColor) { showColorFields(); }
+  }
+
+  function initColors() {
+    document.querySelectorAll("[data-color]").forEach(function (b) {
+      b.addEventListener("click", function (e) { e.preventDefault(); openColor(b.getAttribute("data-color")); });
+    });
+    document.querySelectorAll("#colorModel button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var model = b.getAttribute("data-value"), v = $(editingColor).value;
+        try { localStorage.setItem("illustratorQuote.colorModel", model); } catch (e) { /* ignora */ }
+        setColor(model === "cmyk" ? cmykValue(toCmyk(v)) : toHex(v));
+        showColorFields();
+      });
+    });
+    ["cmykC", "cmykM", "cmykY", "cmykK"].forEach(function (id) {
+      $(id).addEventListener("input", function () {
+        setColor(cmykValue(["cmykC", "cmykM", "cmykY", "cmykK"].map(function (f) {
+          var n = parseFloat(String($(f).value).replace(",", "."));
+          return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+        })));
+      });
+    });
+    $("rgbPick").addEventListener("input", function () { setColor($("rgbPick").value); $("rgbHex").value = $("rgbPick").value.toUpperCase(); });
+    $("rgbHex").addEventListener("change", function () {
+      var h = $("rgbHex").value.trim();
+      if (h.charAt(0) !== "#") { h = "#" + h; }
+      if (/^#[0-9a-f]{6}$/i.test(h)) { setColor(h.toLowerCase()); }
+      showColorFields();
+    });
+    $("btnAiPicker").addEventListener("click", function () {
+      var key = editingColor;
+      call("pickColor", $(key).value, function (res) {
+        if (String(res).indexOf("OK:") !== 0) { status(res); return; }
+        if (!res.substr(3)) { return; }
+        editingColor = key;
+        setColor(res.substr(3));
+        showColorFields();
+      });
+    });
+    $("btnColorDone").addEventListener("click", function () { openColor(editingColor); });
   }
 
   function setMode(mode) {
@@ -216,10 +334,14 @@
     renderPresets();
     applyTheme();
 
-    // ricorda se "Altre opzioni di stile" è aperto
-    try { $("styleMore").open = localStorage.getItem("illustratorQuote.styleMore") === "1"; } catch (e) { /* ignora */ }
-    $("styleMore").addEventListener("toggle", function () {
-      try { localStorage.setItem("illustratorQuote.styleMore", $("styleMore").open ? "1" : "0"); } catch (e) { /* ignora */ }
+    initColors();
+
+    // ricorda quali sezioni richiudibili sono aperte
+    ["styleMore", "presetMore"].forEach(function (id) {
+      try { $(id).open = localStorage.getItem("illustratorQuote." + id) === "1"; } catch (e) { /* ignora */ }
+      $(id).addEventListener("toggle", function () {
+        try { localStorage.setItem("illustratorQuote." + id, $(id).open ? "1" : "0"); } catch (e) { /* ignora */ }
+      });
     });
     if (cep && cep.addEventListener) {
       cep.addEventListener("com.adobe.csxs.events.ThemeColorChanged", applyTheme);
@@ -229,7 +351,7 @@
       b.addEventListener("click", function () { setMode(b.getAttribute("data-value")); save(read()); lastState = null; refreshState(); });
     });
     document.querySelectorAll("input, select").forEach(function (el) {
-      if (el.id === "presetList" || el.id === "presetName") { return; }
+      if (el.id === "presetList" || el.id === "presetName" || /^(cmyk|rgb)/.test(el.id)) { return; }
       el.addEventListener("change", function () { save(read()); setMode(current.mode); lastState = null; refreshState(); });
     });
 

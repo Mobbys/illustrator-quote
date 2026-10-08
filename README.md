@@ -32,6 +32,11 @@ Pannello per Adobe Illustrator che aggiunge le **quote** (linee di misura con fr
   a meno che il file non contenga già quote fatte con questo pannello. Le distanze `offset` e `textOffset` sono lette in punti.
   Il pulsante **Carica impostazioni del vecchio sistema** le carica a mano e, se non ci riesce, dice cosa ha trovato.
 - In fondo al pannello c'è la versione; se Illustrator ha ancora in memoria il motore di una versione precedente, il pannello avvisa di riavviarlo.
+- **Scorciatoie**: *Invio* nel pannello equivale a **Quota**. Per un tasto che funzioni ovunque in Illustrator,
+  l'installer aggiunge lo script **File > Script > Quota**, che quota la selezione con le impostazioni attuali del pannello.
+  Per collegarlo a un tasto F: pannello **Azioni** > nuovo set e nuova azione con il tasto funzione desiderato (es. F5),
+  ferma la registrazione, poi dal menu del pannello Azioni scegli **Inserisci voce di menu** e seleziona File > Script > Quota.
+  Su Windows lo script viene copiato solo se l'installer ha i permessi di amministratore (Windows chiede conferma).
 - Il pannello si può allungare liberamente.
 - Le impostazioni vengono ricordate tra una sessione e l'altra.
 

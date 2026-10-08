@@ -6,4 +6,12 @@ for v in 8 9 10 11 12 13; do
     sudo -u "$CONSOLE_USER" defaults write "com.adobe.CSXS.$v" PlayerDebugMode 1
   fi
 done
+
+# Script "Quota" nel menu File > Script di ogni Illustrator installato (per la scorciatoia da tastiera).
+SCRIPT="/Library/Application Support/Adobe/CEP/extensions/com.mobbys.illustratorquote/script/Quota.jsx"
+if [ -f "$SCRIPT" ]; then
+  find /Applications -maxdepth 4 -type d -path "*/Adobe Illustrator*/Presets*/*/Scripts*" 2>/dev/null | while read -r dir; do
+    cp "$SCRIPT" "$dir/Quota.jsx" || true
+  done
+fi
 exit 0

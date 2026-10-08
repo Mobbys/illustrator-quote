@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.5";
+    var VERSION = "0.5.6";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -621,7 +621,7 @@ var IQ = (function () {
     function linkItem(ctx, item, r) {
         var id = tagItem(ctx, item);
         if (!id) { return null; }
-        ctx.src.push({ id: id, b: [r.left, r.top, r.right, r.bottom] });
+        ctx.src.push(withUuid({ id: id, b: [r.left, r.top, r.right, r.bottom] }, item));
         return [ctx.src.length - 1];
     }
 
@@ -637,7 +637,7 @@ var IQ = (function () {
         if (k < 0) { return null; }
         var id = tagItem(ctx, p.item);
         if (!id) { return null; }
-        ctx.src.push({ id: id, k: k, p: [p[0], p[1]] });
+        ctx.src.push(withUuid({ id: id, k: k, p: [p[0], p[1]] }, p.item));
         return [ctx.src.length - 1];
     }
 
@@ -722,6 +722,24 @@ var IQ = (function () {
         }
     }
 
+    // Identificativo permanente dell'oggetto (Illustrator 2020 e successivi).
+    function withUuid(src, item) {
+        try { if (item.uuid) { src.u = String(item.uuid); } } catch (e) { /* versione vecchia */ }
+        return src;
+    }
+
+    // Oggetto collegato, sempre con un riferimento appena letto: quelli ricordati possono
+    // restare fermi sulla posizione di prima dopo un trascinamento.
+    function resolveSrc(doc, s) {
+        if (s.u) {
+            try {
+                var it = doc.getPageItemFromUuid(s.u);
+                if (it) { return it; }
+            } catch (e) { /* oggetto eliminato o funzione non disponibile */ }
+        }
+        return resolveItem(doc, s.id);
+    }
+
     function resolveItem(doc, id) {
         var it = auto.items[id];
         if (it) {
@@ -745,7 +763,7 @@ var IQ = (function () {
             key = s.id + (s.k !== undefined ? "#" + s.k : (spec.vis ? "|v" : "|g"));
             if (!tick.hasOwnProperty(key)) {
                 v = null;
-                it = resolveItem(doc, s.id);
+                it = resolveSrc(doc, s);
                 if (it) {
                     try {
                         if (s.k !== undefined) {

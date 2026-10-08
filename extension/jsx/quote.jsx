@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.1";
+    var VERSION = "0.6.2";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -239,6 +239,9 @@ var IQ = (function () {
         p.strokeColor = ctx.color;
         p.strokeWidth = ctx.d.stroke;
         p.strokeCap = StrokeCap.BUTTENDCAP;
+        // i nuovi tracciati prendono lo stile corrente del documento: niente tratteggio
+        p.strokeDashes = [];
+        p.strokeDashOffset = 0;
         return p;
     }
 

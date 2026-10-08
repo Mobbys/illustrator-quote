@@ -161,3 +161,9 @@ details.section-toggle > summary h2 { margin: 0; }
 details.section-toggle > summary::before { content: "▸"; color: var(--muted); font-size: 10px; }
 details.section-toggle[open] > summary::before { content: "▾"; }
 details.section-toggle:hover > summary h2 { color: var(--fg); }
+
+/* Quota (2/3) e Aggiorna (1/3) sulla stessa riga */
+.quote-row { display: flex; gap: 6px; margin-top: 10px; }
+.quote-row button.primary { margin-top: 0; }
+#btnQuote { flex: 2 1 0; }
+#btnRefresh { flex: 1 1 0; min-width: 0; }

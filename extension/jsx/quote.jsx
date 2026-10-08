@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.5.3";
+    var VERSION = "0.5.4";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -815,8 +815,9 @@ var IQ = (function () {
         return spec;
     }
 
-    // Ridisegna le quote i cui oggetti sono cambiati. Chiamata dal pannello ogni secondo.
-    function autoUpdate() {
+    // Ridisegna le quote i cui oggetti sono cambiati. Chiamata dal pannello ogni secondo;
+    // con force (tasto Aggiorna) lo fa subito, senza aspettare che l'oggetto stia fermo.
+    function autoUpdate(force) {
         try {
             if (app.documents.length === 0) { return "OK:0"; }
             var doc = app.activeDocument;
@@ -848,10 +849,10 @@ var IQ = (function () {
                     continue;
                 }
                 sig = sigOf(vals);
-                if (auto.skip[q] === sig) { continue; }
+                if (!force && auto.skip[q] === sig) { continue; }
                 // aspetta che l'oggetto stia fermo (stessa misura del controllo precedente):
                 // così non si ridisegna mentre lo si trascina o si scrivono i numeri
-                if (auto.seen[q] !== sig) { auto.seen[q] = sig; continue; }
+                if (!force && auto.seen[q] !== sig) { auto.seen[q] = sig; continue; }
                 delete auto.seen[q];
                 delete auto.skip[q];
                 prev = auto.pos[q];

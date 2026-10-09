@@ -60,6 +60,13 @@ button.danger:hover { border-color: var(--danger); color: var(--danger); }
 .status.error { color: var(--danger); }
 .pair { display: flex; gap: 6px; margin-top: 6px; }
 .pair button:first-child { flex: 1; }
+.pair.upd { align-items: center; flex-wrap: wrap; }
+.pair.upd .upd-label { color: var(--muted); }
+.upd-seg { display: flex; flex: 1 0 auto; }
+.upd-seg button { flex: 1 1 auto; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
+.upd-seg button:first-child { border-radius: 3px 0 0 3px; }
+.upd-seg button + button { border-radius: 0 3px 3px 0; margin-left: -1px; }
+.pair.upd #btnPick { flex: 0 0 auto; white-space: nowrap; }
 button:disabled { opacity: .45; cursor: default; }
 button:disabled:hover { border-color: var(--border); }
 [hidden] { display: none !important; }

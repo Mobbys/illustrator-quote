@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.4";
+    var VERSION = "0.6.5";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -1347,8 +1347,22 @@ var IQ = (function () {
         try {
             if (app.documents.length === 0) { return "ERR:Nessun documento aperto."; }
             var doc = app.activeDocument;
-            var groups = selectedQuoteGroups(doc), i;
-            if (groups.length === 0) { return "ERR:Seleziona una o più quote da aggiornare."; }
+            var all = !!(opts && opts.all), groups, i, layer0 = null, wasLocked = false, wasHidden = false;
+            if (all) {
+                // tutte le quote del documento, senza toccare la selezione né lo stato del livello
+                layer0 = getQuoteLayer(doc, false);
+                groups = [];
+                if (layer0) {
+                    wasLocked = layer0.locked; wasHidden = !layer0.visible;
+                    for (i = 0; i < layer0.groupItems.length; i++) {
+                        if (readQuoteData(layer0.groupItems[i])) { groups.push(layer0.groupItems[i]); }
+                    }
+                }
+                if (groups.length === 0) { return "ERR:Nel documento non ci sono quote da aggiornare."; }
+            } else {
+                groups = selectedQuoteGroups(doc);
+                if (groups.length === 0) { return "ERR:Seleziona una o più quote da aggiornare."; }
+            }
             var o = merge(opts);
             var ctx = { o: o, d: sizes(o), doc: doc, layer: getQuoteLayer(doc, true), color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
 
@@ -1364,10 +1378,15 @@ var IQ = (function () {
                 } catch (e1) {}
                 drawSpec(spec, ctx, g);
                 // in cima al livello: diventa lo stile di riferimento del documento
-                try { g.zOrder(ZOrderMethod.BRINGTOFRONT); } catch (e3) {}
+                if (!all) { try { g.zOrder(ZOrderMethod.BRINGTOFRONT); } catch (e3) {} }
             }
-            try { doc.selection = groups; } catch (e2) {}
-            finishLayer(ctx, true);
+            if (all) {
+                if (wasHidden) { ctx.layer.visible = false; }
+                if (wasLocked || o.lockLayer) { try { ctx.layer.locked = true; } catch (e4) {} }
+            } else {
+                try { doc.selection = groups; } catch (e2) {}
+                finishLayer(ctx, true);
+            }
             app.redraw();
             return "OK:" + ctx.count;
         } catch (e) {

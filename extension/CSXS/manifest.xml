@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ExtensionManifest Version="7.0" ExtensionBundleId="com.mobbys.illustratorquote" ExtensionBundleVersion="0.6.4" ExtensionBundleName="Illustrator Quote" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+<ExtensionManifest Version="7.0" ExtensionBundleId="com.mobbys.illustratorquote" ExtensionBundleVersion="0.6.5" ExtensionBundleName="Illustrator Quote" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
   <ExtensionList>
-    <Extension Id="com.mobbys.illustratorquote.panel" Version="0.6.4" />
+    <Extension Id="com.mobbys.illustratorquote.panel" Version="0.6.5" />
   </ExtensionList>
   <ExecutionEnvironment>
     <HostList>

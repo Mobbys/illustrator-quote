@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.7";
+    var VERSION = "0.6.8";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -863,7 +863,9 @@ var IQ = (function () {
     // Quote e oggetti copiati: la quota copiata (stesso qid di un'altra ancora presente) diventa
     // una quota nuova e, se è stato copiato anche il suo oggetto, si collega alla copia.
     // Gli oggetti copiati senza la quota perdono il tag dell'originale.
-    function fixCopies(doc, layer) {
+    // apply false: controlla soltanto, senza scrivere nel documento (ogni scrittura, anche
+    // sbloccare e ribloccare il livello, lo segna come modificato e da salvare).
+    function fixCopies(doc, layer, apply) {
         var groups = layer.groupItems, i, j, g, note, spec, gu, o, og, changed = false, map = {}, s, c, d, nid, cb, list = [];
         for (i = 0; i < groups.length; i++) { list.push(groups[i]); }
         for (i = 0; i < list.length; i++) {
@@ -881,6 +883,7 @@ var IQ = (function () {
             try { og = doc.getPageItemFromUuid(o); } catch (eO) { og = null; }
             try { if (!og || String(og.note).indexOf('"qid":"' + spec.qid + '"') < 0) { og = null; } } catch (eO2) { og = null; }
             if (!og) { auto.qowner[spec.qid] = gu; continue; }   // l'originale non c'è più: questa è la quota
+            if (!apply) { return true; }
             // copia della quota
             spec = eval("(" + note.substr(NOTE_PREFIX.length) + ")");
             d = null;
@@ -912,6 +915,10 @@ var IQ = (function () {
             try { g.note = NOTE_PREFIX + toJSON(spec); auto.qowner[spec.qid] = gu; changed = true; } catch (eW) {}
         }
         // oggetti copiati senza quota: tolgo il collegamento all'originale
+        if (!apply) {
+            for (s in auto.copies) { if (auto.copies.hasOwnProperty(s)) { return true; } }
+            return false;
+        }
         for (s in auto.copies) {
             if (auto.copies.hasOwnProperty(s) && !map[s]) { retag(auto.copies[s], s, null); }
         }
@@ -1077,9 +1084,14 @@ var IQ = (function () {
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
-            var lk = layer.locked;
-            if (lk) { try { layer.locked = false; } catch (eL) {} }
-            try { fixCopies(doc, layer); } catch (eF) {}
+            var lk = false;
+            try {
+                if (fixCopies(doc, layer, false)) {
+                    lk = layer.locked;
+                    if (lk) { layer.locked = false; }
+                    fixCopies(doc, layer, true);
+                }
+            } catch (eF) {}
             if (lk) { try { layer.locked = true; } catch (eL2) {} }
             var diag = [], selU = force ? selectedUuid(doc) : null;
             var groups = layer.groupItems, tick = {}, todo = [], gone = [], i, g, note, spec, q, u, vals, pos, prev, sig, last;

@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.8";
+    var VERSION = "0.6.9";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -687,7 +687,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {}, uuids: {}, owner: {}, qowner: {}, copies: {} };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {}, uuids: {}, owner: {}, qowner: {}, copies: {}, dups: {} };
     }
 
     function parseCached(note) {
@@ -715,7 +715,7 @@ var IQ = (function () {
             ids = v.split(",");
             for (j = 0; j < ids.length; j++) {
                 if (!ids[j]) { continue; }
-                if (isCopyOf(doc, it, ids[j])) { auto.copies[ids[j]] = auto.copies[ids[j]] || it; continue; }
+                if (isCopyOf(doc, it, ids[j])) { auto.dups[ids[j]] = auto.dups[ids[j]] || it; continue; }
                 if (!auto.items[ids[j]]) { auto.items[ids[j]] = it; }
                 if (auto.present) { auto.present[ids[j]] = true; }
             }
@@ -727,7 +727,6 @@ var IQ = (function () {
     function refreshFromSelection(doc) {
         var sel, seen = 0;
         auto.selItems = {};
-        auto.copies = {};
         try { sel = doc.selection; } catch (e) { return; }
         if (!sel || sel.typename === "TextRange") { return; }
         function visit(it) {
@@ -741,7 +740,7 @@ var IQ = (function () {
                     ids = v.split(",");
                     for (j = 0; j < ids.length; j++) {
                         if (!ids[j]) { continue; }
-                        if (isCopyOf(doc, it, ids[j])) { auto.copies[ids[j]] = it; } else { auto.items[ids[j]] = it; }
+                        if (isCopyOf(doc, it, ids[j])) { auto.dups[ids[j]] = it; } else { auto.items[ids[j]] = it; }
                     }
                 }
             } catch (e1) { /* senza tag */ }
@@ -863,17 +862,38 @@ var IQ = (function () {
     // Quote e oggetti copiati: la quota copiata (stesso qid di un'altra ancora presente) diventa
     // una quota nuova e, se è stato copiato anche il suo oggetto, si collega alla copia.
     // Gli oggetti copiati senza la quota perdono il tag dell'originale.
+    // Copie (Alt+trascina, copia e incolla). Una copia porta con sé il tag dell'oggetto e,
+    // se copiata anche lei, la nota della quota: due oggetti con lo stesso tag, due quote con lo
+    // stesso qid. L'originale è quello rimasto dov'era (alla misura salvata): Illustrator può
+    // dare l'identificativo vecchio a quello spostato.
+    // - quota copiata insieme all'oggetto: diventa una quota nuova collegata alla copia;
+    // - quota copiata da sola: diventa una quota normale, non più collegata;
+    // - oggetto copiato da solo: perde il tag, non ha quote.
     // apply false: controlla soltanto, senza scrivere nel documento (ogni scrittura, anche
-    // sbloccare e ribloccare il livello, lo segna come modificato e da salvare).
+    // sbloccare e ribloccare il livello, lo segna come modificato e aggiunge un passo di annulla).
+    function lineStartOf(g) {
+        try { var a = g.pathItems.getByName(LINE_NAME).pathPoints[0].anchor; return [a[0], a[1]]; } catch (e) { return null; }
+    }
+
+    function near(p, q) { return p && q && Math.abs(p[0] - q[0]) < 0.5 && Math.abs(p[1] - q[1]) < 0.5; }
+
     function fixCopies(doc, layer, apply) {
-        var groups = layer.groupItems, i, j, g, note, spec, gu, o, og, changed = false, map = {}, s, c, d, nid, cb, list = [];
-        for (i = 0; i < groups.length; i++) { list.push(groups[i]); }
-        for (i = 0; i < list.length; i++) {
-            g = list[i];
+        var groups = layer.groupItems, i, j, k, g, note, spec, gu, o, og, changed = false, map = {}, s, c, d, cb, list = [],
+            idBox = {}, byQid = {}, pairs = [], dup, oit, cg, static_;
+        for (i = 0; i < groups.length; i++) {
+            g = groups[i];
             try { note = String(g.note || ""); } catch (eN) { continue; }
             if (note.indexOf(NOTE_PREFIX) !== 0 || note.indexOf('"qid"') < 0) { continue; }
             spec = parseCached(note);
             if (!spec || !spec.src || !spec.qid) { continue; }
+            list.push({ g: g, note: note, spec: spec });
+            for (j = 0; j < spec.src.length; j++) {
+                if (spec.src[j].b && !idBox[spec.src[j].id]) { idBox[spec.src[j].id] = { b: spec.src[j].b, vis: spec.vis }; }
+            }
+        }
+        // quote con lo stesso qid
+        for (i = 0; i < list.length; i++) {
+            spec = list[i].spec; g = list[i].g;
             gu = uuidOf(g);
             if (!gu) { continue; }
             o = auto.qowner[spec.qid];
@@ -883,14 +903,51 @@ var IQ = (function () {
             try { og = doc.getPageItemFromUuid(o); } catch (eO) { og = null; }
             try { if (!og || String(og.note).indexOf('"qid":"' + spec.qid + '"') < 0) { og = null; } } catch (eO2) { og = null; }
             if (!og) { auto.qowner[spec.qid] = gu; continue; }   // l'originale non c'è più: questa è la quota
-            if (!apply) { return true; }
-            // copia della quota
+            pairs.push({ g: g, og: og, gu: gu, item: list[i] });
+        }
+        var hasDups = false;
+        for (s in auto.dups) { if (auto.dups.hasOwnProperty(s)) { hasDups = true; break; } }
+        if (!apply) { return pairs.length > 0 || hasDups; }
+
+        // oggetti con lo stesso tag: quale è la copia
+        auto.copies = {};
+        for (s in auto.dups) {
+            if (!auto.dups.hasOwnProperty(s)) { continue; }
+            dup = auto.dups[s];
+            oit = null;
+            try { oit = doc.getPageItemFromUuid(auto.owner[s]); } catch (eW0) { oit = null; }
+            if (idBox[s] && oit && sameBox(dup, idBox[s].b, idBox[s].vis) && !sameBox(oit, idBox[s].b, idBox[s].vis)) {
+                // quello rimasto fermo è l'originale anche se ha l'identificativo nuovo
+                auto.owner[s] = uuidOf(dup);
+                auto.items[s] = dup;
+                auto.copies[s] = oit;
+                logf("copia: originale " + s + " = oggetto rimasto fermo (identificativo nuovo)");
+            } else {
+                auto.copies[s] = dup;
+                logf("copia: oggetto copiato con il tag " + s);
+            }
+        }
+        auto.dups = {};
+
+        for (k = 0; k < pairs.length; k++) {
+            g = pairs[k].g; og = pairs[k].og;
+            spec = pairs[k].item.spec;
+            // la quota rimasta ferma è l'originale
+            cg = g;
+            if (near(lineStartOf(g), spec.line) && !near(lineStartOf(og), spec.line)) {
+                cg = og;
+                auto.qowner[spec.qid] = pairs[k].gu;
+            }
+            try { note = String(cg.note); } catch (eN2) { continue; }
             spec = eval("(" + note.substr(NOTE_PREFIX.length) + ")");
             d = null;
+            static_ = true;
+            var moved_ = {};
             for (j = 0; j < spec.src.length; j++) {
                 s = spec.src[j];
                 c = s.nt ? null : auto.copies[s.id];
                 if (!c) { continue; }
+                static_ = false;
                 if (!map[s.id]) {
                     map[s.id] = newId();
                     retag(c, s.id, map[s.id]);
@@ -901,29 +958,76 @@ var IQ = (function () {
                 if (cb && s.b && !d) { d = [cb[0] - s.b[0], cb[1] - s.b[1]]; }
                 s.id = map[s.id];
                 s.u = uuidOf(c);
-            }
-            if (d) {
-                translateSpec(spec, d);
-                if (spec.line) { spec.line = vadd(spec.line, d); }
-                for (j = 0; j < spec.src.length; j++) {
-                    s = spec.src[j];
-                    if (s.b) { s.b = [s.b[0] + d[0], s.b[1] + d[1], s.b[2] + d[0], s.b[3] + d[1]]; }
-                    if (s.p) { s.p = vadd(s.p, d); }
-                }
+                moved_[j] = true;
             }
             spec.qid = newId();
-            try { g.note = NOTE_PREFIX + toJSON(spec); auto.qowner[spec.qid] = gu; changed = true; } catch (eW) {}
+            if (static_) {
+                delete spec.src; delete spec.own;
+                logf("copia: quota copiata da sola, ora non collegata (" + cg.name + ")");
+            } else {
+                if (d) {
+                    translateSpec(spec, d);
+                    if (spec.line) { spec.line = vadd(spec.line, d); }
+                    for (j = 0; j < spec.src.length; j++) {
+                        s = spec.src[j];
+                        if (!moved_[j]) { continue; }   // oggetto non copiato: resta dov'è
+                        if (s.b) { s.b = [s.b[0] + d[0], s.b[1] + d[1], s.b[2] + d[0], s.b[3] + d[1]]; }
+                        if (s.p) { s.p = vadd(s.p, d); }
+                    }
+                }
+                logf("copia: quota copiata collegata alla copia dell'oggetto (" + cg.name + ")");
+            }
+            try { cg.note = NOTE_PREFIX + toJSON(spec); if (uuidOf(cg)) { auto.qowner[spec.qid] = uuidOf(cg); } changed = true; } catch (eW) {}
         }
         // oggetti copiati senza quota: tolgo il collegamento all'originale
-        if (!apply) {
-            for (s in auto.copies) { if (auto.copies.hasOwnProperty(s)) { return true; } }
-            return false;
-        }
         for (s in auto.copies) {
             if (auto.copies.hasOwnProperty(s) && !map[s]) { retag(auto.copies[s], s, null); }
         }
         auto.copies = {};
         return changed;
+    }
+
+    // ---------- registro (per capire cosa è successo quando una quota si sballa) ----------
+
+    var logFile = null;
+
+    function logPath() {
+        if (!logFile) {
+            var dir = new Folder(Folder.userData + "/IllustratorQuote");
+            if (!dir.exists) { dir.create(); }
+            logFile = new File(dir.fsName + "/registro.txt");
+        }
+        return logFile;
+    }
+
+    function logf(msg) {
+        try {
+            var f = logPath();
+            if (f.exists && f.length > 300000) { f.remove(); }
+            f.encoding = "UTF-8";
+            f.open("a");
+            var t = new Date();
+            f.writeln(t.toLocaleDateString() + " " + t.toLocaleTimeString() + "  " + msg);
+            f.close();
+        } catch (e) { /* registro non disponibile */ }
+    }
+
+    function r1(a) {
+        if (!a) { return String(a); }
+        var o = [], k;
+        for (k = 0; k < a.length; k++) { o.push(Math.round(a[k] * 10) / 10); }
+        return "[" + o.join(",") + "]";
+    }
+
+    function openLog() {
+        try {
+            var f = logPath();
+            if (!f.exists) { logf("registro creato, versione " + VERSION); }
+            f.execute();
+            return "OK:" + f.fsName;
+        } catch (e) {
+            return "ERR:" + e.message;
+        }
     }
 
     function resolveItem(doc, id) {
@@ -1077,9 +1181,12 @@ var IQ = (function () {
             var doc = app.activeDocument;
             if (auto.key !== doc.name) { autoReset(doc.name); }
             // meno oggetti di prima: qualcosa è stato eliminato, rifà l'elenco completo
+            auto.dups = {};
             var nItems = -1;
             try { nItems = doc.pageItems.length; } catch (eC) {}
             if (nItems >= 0 && (auto.present === null || nItems < auto.count)) { scanTags(doc, true); }
+            // più oggetti di prima: forse una copia (Alt+trascina, incolla) con il tag dell'originale
+            else if (nItems > auto.count && auto.count >= 0) { scanTags(doc, false); }
             auto.count = nItems;
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
@@ -1143,7 +1250,7 @@ var IQ = (function () {
                     if (!force && (!auto.moving[q] || auto.skipMove[q] === note)) { continue; }
                     delete auto.moving[q];
                     if (!lineMoved(g, spec)) { continue; }
-                    todo.push({ g: g, note: note, vals: vals, step: [0, 0] });
+                    todo.push({ g: g, note: note, vals: vals, why: "quota spostata a mano" });
                     continue;
                 }
                 sig = sigOf(vals);
@@ -1153,8 +1260,7 @@ var IQ = (function () {
                 if (!force && auto.seen[q] !== sig) { auto.seen[q] = sig; continue; }
                 delete auto.seen[q];
                 delete auto.skip[q];
-                prev = auto.pos[q];
-                todo.push({ g: g, note: note, vals: vals, step: (pos && prev) ? vsub(pos, prev) : [0, 0] });
+                todo.push({ g: g, note: note, vals: vals, obj: true, why: "oggetto modificato" });
             }
             if (todo.length === 0 && gone.length === 0) { return "OK:0" + diagText(diag); }
 
@@ -1162,20 +1268,27 @@ var IQ = (function () {
             if (wasLocked) { layer.locked = false; }
             if (wasHidden) { layer.visible = true; }
             for (i = 0; i < gone.length; i++) {
-                try { gone[i].remove(); count++; } catch (eR) { /* quota bloccata */ }
+                try { logf("elimino " + gone[i].name + ": oggetto eliminato"); gone[i].remove(); count++; } catch (eR) { /* quota bloccata */ }
             }
             for (i = 0; i < todo.length; i++) {
                 t = todo[i];
                 try {
                     spec = eval("(" + t.note.substr(NOTE_PREFIX.length) + ")");   // copia da modificare
+                    // quota spostata a mano (oggetto fermo): lo spostamento di lato diventa la nuova
+                    // distanza dall'oggetto. Se è cambiato l'oggetto la quota resta alla sua distanza:
+                    // spostata insieme all'oggetto o no, il risultato giusto è lo stesso.
                     moved = [0, 0];
-                    if (spec.type === "lin") {
-                        // spostamento fatto a mano = quanto si è mosso la linea, meno lo spostamento
-                        // fatto in questo istante insieme all'oggetto
+                    if (spec.type === "lin" && !t.obj) {
                         var p0 = t.g.pathItems.getByName(LINE_NAME).pathPoints[0].anchor;
-                        moved = vsub(vsub([p0[0], p0[1]], spec.line), t.step);
+                        moved = vsub([p0[0], p0[1]], spec.line);
                     }
+                    var before = [], kk;
+                    for (kk = 0; kk < spec.src.length; kk++) { before.push(r1(oldVal(spec.src[kk]))); }
                     respec(spec, t.vals, moved);
+                    var after = [];
+                    for (kk = 0; kk < t.vals.length; kk++) { after.push(r1(t.vals[kk])); }
+                    logf("ridisegno " + t.g.name + " (" + t.why + (force ? ", Aggiorna" : "") + "): oggetto " + before.join(" ") + " -> " + after.join(" ") +
+                        (spec.type === "lin" ? "; spostamento a mano " + r1(moved) + ", distanza " + Math.round(spec.shift || 0) : ""));
                     o = merge(spec.style);
                     ctx = { o: o, d: sizes(o), doc: doc, layer: layer, color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
                     if (drawSpec(spec, ctx, t.g)) {
@@ -1788,7 +1901,7 @@ var IQ = (function () {
 
     return {
         version: VERSION, loadLegacy: loadLegacy, pickColor: pickColor,
-        quote: quote, update: update, autoUpdate: autoUpdate, styleOfSelection: styleOfSelection, state: state,
+        quote: quote, update: update, autoUpdate: autoUpdate, openLog: openLog, styleOfSelection: styleOfSelection, state: state,
         clearAll: clearAll, toggleVisible: toggleVisible, setLocked: setLocked,
         exportPresets: exportPresets, importPresets: importPresets, saveSettings: saveSettings, shortcutScript: shortcutScript
     };

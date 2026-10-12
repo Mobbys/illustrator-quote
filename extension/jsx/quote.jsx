@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.5";
+    var VERSION = "0.6.6";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -632,8 +632,10 @@ var IQ = (function () {
 
     function srcOf(ref, item, extra) {
         extra.id = ref.id;
-        if (ref.nt) { extra.nt = 1; }
-        return withUuid(extra, item);
+        if (ref.nt) { extra.nt = 1; try { extra.t = String(item.typename); } catch (e) {} }
+        withUuid(extra, item);
+        if (ref.nt && extra.u && auto.uuids) { auto.uuids[extra.id] = extra.u; }   // verificato: è appena stato quotato
+        return extra;
     }
 
     function linkItem(ctx, item, r) {
@@ -684,7 +686,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {} };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {}, uuids: {} };
     }
 
     function parseCached(note) {
@@ -756,16 +758,60 @@ var IQ = (function () {
 
     // Oggetto collegato, sempre con un riferimento appena letto: quelli ricordati possono
     // restare fermi sulla posizione di prima dopo un trascinamento.
-    function resolveSrc(doc, s) {
-        // prima l'oggetto selezionato: è il riferimento più fresco
-        if (s.u && auto.selItems && auto.selItems[s.u]) { return auto.selItems[s.u]; }
-        if (s.u) {
-            try {
-                var it = doc.getPageItemFromUuid(s.u);
-                if (it) { return it; }
-            } catch (e) { /* oggetto eliminato o funzione non disponibile */ }
+    // L'uuid vale solo finché il documento resta aperto: riaprendo il file Illustrator lo
+    // riassegna e quello salvato può indicare un altro oggetto. Per questo l'oggetto trovato
+    // con l'uuid si usa solo se è davvero quello giusto (ha il nostro tag).
+    function lookupUuid(doc, u) {
+        if (!u) { return null; }
+        if (auto.selItems && auto.selItems[u]) { return auto.selItems[u]; }
+        try { return doc.getPageItemFromUuid(u) || null; } catch (e) { return null; }
+    }
+
+    function hasTagId(it, id) {
+        try { return String(it.tags.getByName(SRC_TAG).value).indexOf("," + id + ",") >= 0; } catch (e) { return false; }
+    }
+
+    // Oggetto senza tag: si usa l'uuid già verificato in questa sessione; altrimenti si cerca
+    // un oggetto dello stesso tipo con la stessa misura salvata. UNSURE: non si sa, non toccare.
+    var UNSURE = { unsure: true };
+
+    function sameBox(it, b, vis) {
+        try {
+            var c = boundsOf(it, vis), k;
+            for (k = 0; k < 4; k++) { if (Math.abs(c[k] - b[k]) > 0.5) { return false; } }
+            return true;
+        } catch (e) { return false; }
+    }
+
+    function typeOk(it, s) {
+        var t;
+        try { t = String(it.typename); } catch (e) { return false; }
+        return s.t ? t === s.t : (t === "PlacedItem" || t === "RasterItem");
+    }
+
+    function resolveNoTag(doc, s, vis) {
+        var cu = auto.uuids[s.id], it, all, i;
+        if (cu) {
+            it = lookupUuid(doc, cu);
+            return (it && typeOk(it, s)) ? it : null;
         }
-        if (s.nt) { return null; }   // senza tag non c'è altro modo di trovarlo
+        if (!s.b) { return UNSURE; }
+        it = lookupUuid(doc, s.u);
+        if (it && typeOk(it, s) && sameBox(it, s.b, vis)) { auto.uuids[s.id] = s.u; return it; }
+        all = doc.pageItems;
+        for (i = 0; i < all.length; i++) {
+            if (typeOk(all[i], s) && sameBox(all[i], s.b, vis) && uuidOf(all[i])) {
+                auto.uuids[s.id] = uuidOf(all[i]);
+                return all[i];
+            }
+        }
+        return UNSURE;
+    }
+
+    function resolveSrc(doc, s, vis) {
+        if (s.nt) { return resolveNoTag(doc, s, vis); }
+        var it = lookupUuid(doc, s.u);
+        if (it && hasTagId(it, s.id)) { return it; }
         return resolveItem(doc, s.id);
     }
 
@@ -797,14 +843,16 @@ var IQ = (function () {
                 v = null;
                 // Illustrator può ancora "trovare" un oggetto eliminato (resta per l'annulla):
                 // conta la ricerca completa fatta quando il numero di oggetti è sceso.
-                pk = s.nt ? "u:" + s.u : s.id;
-                if (auto.known[pk] && auto.present && !auto.present[pk]) {
+                pk = s.nt ? (auto.uuids[s.id] ? "u:" + auto.uuids[s.id] : null) : s.id;
+                if (pk && auto.known[pk] && auto.present && !auto.present[pk]) {
                     it = null;
                 } else {
-                    it = resolveSrc(doc, s);
-                    if (it) { auto.known[pk] = true; if (auto.present) { auto.present[pk] = true; } }
+                    it = resolveSrc(doc, s, spec.vis);
+                    if (s.nt && auto.uuids[s.id]) { pk = "u:" + auto.uuids[s.id]; }
+                    if (it && it !== UNSURE && pk) { auto.known[pk] = true; if (auto.present) { auto.present[pk] = true; } }
                 }
-                if (!it) { v = GONE; }
+                if (it === UNSURE) { it = null; v = null; }
+                else if (!it) { v = GONE; }
                 if (it) {
                     try {
                         if (s.k !== undefined) {
@@ -1042,15 +1090,15 @@ var IQ = (function () {
         if (selU === null) { return false; }
         if (selU === "") { return true; }
         var i;
-        for (i = 0; i < spec.src.length; i++) { if (spec.src[i].u === selU) { return true; } }
+        for (i = 0; i < spec.src.length; i++) { if (spec.src[i].u === selU || auto.uuids[spec.src[i].id] === selU) { return true; } }
         return false;
     }
 
     function diagOf(doc, spec, vals) {
         function r(a) { var o = [], k; for (k = 0; k < a.length; k++) { o.push(Math.round(a[k] * 10) / 10); } return o.join(","); }
         var out = [], s = spec.src[0], it = null, t;
-        try { it = resolveSrc(doc, s); } catch (e1) {}
-        t = it ? String(it.typename) : "non trovato";
+        try { it = resolveSrc(doc, s, spec.vis); } catch (e1) {}
+        t = it === UNSURE ? "non riconosciuto" : (it ? String(it.typename) : "non trovato");
         if (s.nt) { t += " senza tag"; }
         if (!s.u) { t += " senza uuid"; }
         out.push(t);
@@ -1101,6 +1149,7 @@ var IQ = (function () {
             // collega le quote agli oggetti, per l'aggiornamento automatico
             ctx.src = [];
             ctx.callId = newId();
+            if (auto.key !== doc.name) { autoReset(doc.name); }
             if (o.mode === "points") {
                 for (i = 0; i < pts.length; i++) { pts[i].s = linkPoint(ctx, pts[i]); }
             } else {

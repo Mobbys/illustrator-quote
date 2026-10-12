@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.6";
+    var VERSION = "0.6.7";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -622,6 +622,7 @@ var IQ = (function () {
             ref.nt = 1;
         }
         ctx.tagged.push({ item: item, ref: ref });
+        if (!ref.nt && auto.owner) { var ou = uuidOf(item); if (ou) { auto.owner[id] = ou; } }
         return ref;
     }
 
@@ -686,7 +687,7 @@ var IQ = (function () {
     var auto = { key: null };
 
     function autoReset(key) {
-        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {}, uuids: {} };
+        auto = { key: key, specs: {}, nspecs: 0, items: {}, scannedAt: -1, undo: {}, skip: {}, pos: {}, seen: {}, gone: {}, removed: {}, known: {}, present: null, count: -1, lastPos: {}, moving: {}, skipMove: {}, uuids: {}, owner: {}, qowner: {}, copies: {} };
     }
 
     function parseCached(note) {
@@ -713,8 +714,10 @@ var IQ = (function () {
             } catch (e) { continue; }
             ids = v.split(",");
             for (j = 0; j < ids.length; j++) {
-                if (ids[j] && !auto.items[ids[j]]) { auto.items[ids[j]] = it; }
-                if (ids[j] && auto.present) { auto.present[ids[j]] = true; }
+                if (!ids[j]) { continue; }
+                if (isCopyOf(doc, it, ids[j])) { auto.copies[ids[j]] = auto.copies[ids[j]] || it; continue; }
+                if (!auto.items[ids[j]]) { auto.items[ids[j]] = it; }
+                if (auto.present) { auto.present[ids[j]] = true; }
             }
         }
     }
@@ -724,6 +727,7 @@ var IQ = (function () {
     function refreshFromSelection(doc) {
         var sel, seen = 0;
         auto.selItems = {};
+        auto.copies = {};
         try { sel = doc.selection; } catch (e) { return; }
         if (!sel || sel.typename === "TextRange") { return; }
         function visit(it) {
@@ -735,7 +739,10 @@ var IQ = (function () {
                 if (it.tags.length > 0) {
                     v = String(it.tags.getByName(SRC_TAG).value);
                     ids = v.split(",");
-                    for (j = 0; j < ids.length; j++) { if (ids[j]) { auto.items[ids[j]] = it; } }
+                    for (j = 0; j < ids.length; j++) {
+                        if (!ids[j]) { continue; }
+                        if (isCopyOf(doc, it, ids[j])) { auto.copies[ids[j]] = it; } else { auto.items[ids[j]] = it; }
+                    }
                 }
             } catch (e1) { /* senza tag */ }
             try {
@@ -811,8 +818,105 @@ var IQ = (function () {
     function resolveSrc(doc, s, vis) {
         if (s.nt) { return resolveNoTag(doc, s, vis); }
         var it = lookupUuid(doc, s.u);
-        if (it && hasTagId(it, s.id)) { return it; }
-        return resolveItem(doc, s.id);
+        if (!(it && hasTagId(it, s.id))) {
+            if (auto.owner[s.id]) { it = lookupUuid(doc, auto.owner[s.id]); if (!(it && hasTagId(it, s.id))) { it = null; } }
+            else { it = null; }
+        }
+        if (!it && !auto.owner[s.id] && s.b) { it = holderAt(doc, s, vis); }
+        if (!it) { it = resolveItem(doc, s.id); }
+        if (it && !auto.owner[s.id]) { var ou = uuidOf(it); if (ou) { auto.owner[s.id] = ou; } }
+        return it;
+    }
+
+    // Primo collegamento della sessione (uuid cambiati riaprendo il file): se più oggetti
+    // hanno lo stesso tag (copie salvate nel file), sceglie quello alla misura salvata.
+    function holderAt(doc, s, vis) {
+        var all = doc.pageItems, i, first = null, n = 0;
+        for (i = 0; i < all.length; i++) {
+            if (!hasTagId(all[i], s.id)) { continue; }
+            n++;
+            if (!first) { first = all[i]; }
+            if (sameBox(all[i], s.b, vis)) { return all[i]; }
+        }
+        return n > 1 ? first : null;
+    }
+
+    // Copia fatta con Alt+trascina (o copia e incolla): porta con sé il tag dell'originale.
+    // È una copia se l'originale (uuid registrato) esiste ancora con lo stesso tag.
+    function isCopyOf(doc, it, id) {
+        var o = auto.owner && auto.owner[id], u;
+        if (!o) { return false; }
+        u = uuidOf(it);
+        if (!u || u === o) { return false; }
+        var orig = null;
+        try { orig = doc.getPageItemFromUuid(o); } catch (e) { orig = null; }
+        return !!(orig && hasTagId(orig, id));
+    }
+
+    function retag(it, oldId, newId) {
+        try {
+            var tag = it.tags.getByName(SRC_TAG), v = String(tag.value).replace("," + oldId + ",", newId ? "," + newId + "," : ",");
+            if (v === ",") { tag.remove(); } else { tag.value = v; }
+        } catch (e) {}
+    }
+
+    // Quote e oggetti copiati: la quota copiata (stesso qid di un'altra ancora presente) diventa
+    // una quota nuova e, se è stato copiato anche il suo oggetto, si collega alla copia.
+    // Gli oggetti copiati senza la quota perdono il tag dell'originale.
+    function fixCopies(doc, layer) {
+        var groups = layer.groupItems, i, j, g, note, spec, gu, o, og, changed = false, map = {}, s, c, d, nid, cb, list = [];
+        for (i = 0; i < groups.length; i++) { list.push(groups[i]); }
+        for (i = 0; i < list.length; i++) {
+            g = list[i];
+            try { note = String(g.note || ""); } catch (eN) { continue; }
+            if (note.indexOf(NOTE_PREFIX) !== 0 || note.indexOf('"qid"') < 0) { continue; }
+            spec = parseCached(note);
+            if (!spec || !spec.src || !spec.qid) { continue; }
+            gu = uuidOf(g);
+            if (!gu) { continue; }
+            o = auto.qowner[spec.qid];
+            if (!o) { auto.qowner[spec.qid] = gu; continue; }
+            if (o === gu) { continue; }
+            og = null;
+            try { og = doc.getPageItemFromUuid(o); } catch (eO) { og = null; }
+            try { if (!og || String(og.note).indexOf('"qid":"' + spec.qid + '"') < 0) { og = null; } } catch (eO2) { og = null; }
+            if (!og) { auto.qowner[spec.qid] = gu; continue; }   // l'originale non c'è più: questa è la quota
+            // copia della quota
+            spec = eval("(" + note.substr(NOTE_PREFIX.length) + ")");
+            d = null;
+            for (j = 0; j < spec.src.length; j++) {
+                s = spec.src[j];
+                c = s.nt ? null : auto.copies[s.id];
+                if (!c) { continue; }
+                if (!map[s.id]) {
+                    map[s.id] = newId();
+                    retag(c, s.id, map[s.id]);
+                    auto.owner[map[s.id]] = uuidOf(c);
+                    auto.items[map[s.id]] = c;
+                }
+                try { cb = boundsOf(c, spec.vis); } catch (eB) { cb = null; }
+                if (cb && s.b && !d) { d = [cb[0] - s.b[0], cb[1] - s.b[1]]; }
+                s.id = map[s.id];
+                s.u = uuidOf(c);
+            }
+            if (d) {
+                translateSpec(spec, d);
+                if (spec.line) { spec.line = vadd(spec.line, d); }
+                for (j = 0; j < spec.src.length; j++) {
+                    s = spec.src[j];
+                    if (s.b) { s.b = [s.b[0] + d[0], s.b[1] + d[1], s.b[2] + d[0], s.b[3] + d[1]]; }
+                    if (s.p) { s.p = vadd(s.p, d); }
+                }
+            }
+            spec.qid = newId();
+            try { g.note = NOTE_PREFIX + toJSON(spec); auto.qowner[spec.qid] = gu; changed = true; } catch (eW) {}
+        }
+        // oggetti copiati senza quota: tolgo il collegamento all'originale
+        for (s in auto.copies) {
+            if (auto.copies.hasOwnProperty(s) && !map[s]) { retag(auto.copies[s], s, null); }
+        }
+        auto.copies = {};
+        return changed;
     }
 
     function resolveItem(doc, id) {
@@ -973,6 +1077,10 @@ var IQ = (function () {
             refreshFromSelection(doc);
             var layer = getQuoteLayer(doc, false);
             if (!layer) { return "OK:0"; }
+            var lk = layer.locked;
+            if (lk) { try { layer.locked = false; } catch (eL) {} }
+            try { fixCopies(doc, layer); } catch (eF) {}
+            if (lk) { try { layer.locked = true; } catch (eL2) {} }
             var diag = [], selU = force ? selectedUuid(doc) : null;
             var groups = layer.groupItems, tick = {}, todo = [], gone = [], i, g, note, spec, q, u, vals, pos, prev, sig, last;
             for (i = 0; i < groups.length; i++) {

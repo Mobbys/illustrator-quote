@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.11";
+    var VERSION = "0.6.12";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -1088,6 +1088,29 @@ var IQ = (function () {
         return out;
     }
 
+    // Prima di dare per eliminato un oggetto lo cerca da capo in tutto il documento, senza
+    // usare niente di ricordato: riaprendo lo stesso file (stesso nome) i riferimenti e gli uuid
+    // ricordati non valgono più e l'oggetto sembrerebbe sparito anche se c'è.
+    function stillThere(doc, spec) {
+        var all = doc.pageItems, i, j, s, found, cu, it;
+        for (i = 0; i < spec.src.length; i++) {
+            s = spec.src[i];
+            found = false;
+            if (s.nt) {
+                // Illustrator trova con l'uuid anche gli oggetti appena eliminati: si cerca tra quelli presenti
+                cu = auto.uuids[s.id];
+                for (j = 0; j < all.length && !found; j++) {
+                    it = all[j];
+                    found = typeOk(it, s) && ((cu && uuidOf(it) === cu) || (s.b && sameBox(it, s.b, spec.vis)));
+                }
+            } else {
+                for (j = 0; j < all.length && !found; j++) { found = hasTagId(all[j], s.id); }
+            }
+            if (!found) { return false; }
+        }
+        return true;
+    }
+
     function oldVal(s) { return s.k !== undefined ? s.p : s.b; }
 
     function sameVals(spec, vals) {
@@ -1177,7 +1200,7 @@ var IQ = (function () {
     function autoUpdate(force) {
         force2 = !!force;
         try {
-            if (app.documents.length === 0) { return "OK:0"; }
+            if (app.documents.length === 0) { autoReset(null); return "OK:0"; }
             var doc = app.activeDocument;
             if (auto.key !== doc.name) { autoReset(doc.name); }
             // meno oggetti di prima: qualcosa è stato eliminato, rifà l'elenco completo
@@ -1231,6 +1254,12 @@ var IQ = (function () {
                     // oggetto eliminato: elimina anche la quota (confermato al controllo successivo).
                     // Se la quota ricompare (Ctrl+Z) dopo che l'abbiamo tolta, la lasciamo stare.
                     if (auto.removed[q]) { continue; }
+                    if (stillThere(doc, spec)) {
+                        // l'oggetto c'è: quello che ricordavamo è vecchio (file chiuso e riaperto)
+                        logf("riparto da capo: " + g.name + " sembrava senza oggetto ma l'oggetto c'è");
+                        autoReset(doc.name);
+                        return "OK:0" + diagText(diag);
+                    }
                     if (!force && !auto.gone[q]) { auto.gone[q] = true; continue; }
                     auto.removed[q] = true;
                     gone.push(g);

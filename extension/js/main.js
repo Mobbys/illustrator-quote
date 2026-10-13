@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.6.10";
+  var VERSION = "0.6.11";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -46,8 +46,21 @@
     return out;
   }
 
+  // Il menu dei preset mostra un preset solo finché lo stile attuale è davvero quello:
+  // se lo stile cambia (a mano o ripreso dalle quote del documento) torna a "Scegli un preset…".
+  function syncPreset(s) {
+    var sel = $("presetList"), name = sel && sel.value, p, k;
+    if (!name) { return; }
+    p = loadPresets()[name];
+    for (k in (p || {})) {
+      if (p.hasOwnProperty(k) && STYLE.indexOf(k) >= 0 && String(p[k]) !== String(s[k])) { p = null; break; }
+    }
+    if (!p) { sel.value = ""; $("btnPresetDelete").disabled = true; }
+  }
+
   function save(s) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* ignora */ }
+    syncPreset(s);
     // copia su disco per lo script File > Script > Quota (scorciatoia da tastiera), subito:
     // se si preme la scorciatoia appena dopo aver cambiato i lati deve già trovare quelli nuovi
     var copy = JSON.parse(JSON.stringify(s));

@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.10";
+    var VERSION = "0.6.11";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -1012,7 +1012,7 @@ var IQ = (function () {
         } catch (e) { /* registro non disponibile */ }
     }
 
-    function r1(a) {
+    function rr1(a) {
         if (!a) { return String(a); }
         var o = [], k;
         for (k = 0; k < a.length; k++) { o.push(Math.round(a[k] * 10) / 10); }
@@ -1283,12 +1283,12 @@ var IQ = (function () {
                         moved = vsub([p0[0], p0[1]], spec.line);
                     }
                     var before = [], kk;
-                    for (kk = 0; kk < spec.src.length; kk++) { before.push(r1(oldVal(spec.src[kk]))); }
+                    for (kk = 0; kk < spec.src.length; kk++) { before.push(rr1(oldVal(spec.src[kk]))); }
                     respec(spec, t.vals, moved);
                     var after = [];
-                    for (kk = 0; kk < t.vals.length; kk++) { after.push(r1(t.vals[kk])); }
+                    for (kk = 0; kk < t.vals.length; kk++) { after.push(rr1(t.vals[kk])); }
                     logf("ridisegno " + t.g.name + " (" + t.why + (force ? ", Aggiorna" : "") + "): oggetto " + before.join(" ") + " -> " + after.join(" ") +
-                        (spec.type === "lin" ? "; spostamento a mano " + r1(moved) + ", distanza " + Math.round(spec.shift || 0) : ""));
+                        (spec.type === "lin" ? "; spostamento a mano " + rr1(moved) + ", distanza " + Math.round(spec.shift || 0) : ""));
                     o = merge(spec.style);
                     ctx = { o: o, d: sizes(o), doc: doc, layer: layer, color: makeColor(doc, o.color), textColor: makeColor(doc, o.textColor || o.color), count: 0 };
                     if (drawSpec(spec, ctx, t.g)) {

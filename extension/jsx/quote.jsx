@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.9";
+    var VERSION = "0.6.10";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -1022,7 +1022,7 @@ var IQ = (function () {
     function openLog() {
         try {
             var f = logPath();
-            if (!f.exists) { logf("registro creato, versione " + VERSION); }
+            if (!f.exists) { logf("registro creato, versione " + VERSION + " (qui compaiono le quote create, ridisegnate, eliminate o copiate)"); }
             f.execute();
             return "OK:" + f.fsName;
         } catch (e) {
@@ -1406,6 +1406,13 @@ var IQ = (function () {
             try { doc.selection = items; } catch (e1) {}
             finishLayer(ctx, false);
             app.redraw();
+            var lati = [];
+            if (o.top) { lati.push("sopra"); }
+            if (o.right) { lati.push("destra"); }
+            if (o.bottom) { lati.push("sotto"); }
+            if (o.left) { lati.push("sinistra"); }
+            logf("quota (" + (o.via || "scorciatoia") + "): modo " + o.mode + (sided ? ", lati " + lati.join("+") : "") +
+                ", " + items.length + " oggetti, " + ctx.count + " quote disegnate");
             return "OK:" + ctx.count;
         } catch (e) {
             return "ERR:" + e.message + (e.line ? " (riga " + e.line + ")" : "");

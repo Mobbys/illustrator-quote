@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.6.9";
+  var VERSION = "0.6.10";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -46,17 +46,13 @@
     return out;
   }
 
-  var syncTimer = null;
   function save(s) {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (e) { /* ignora */ }
-    // copia su disco per lo script File > Script > Quota (scorciatoia da tastiera)
-    if (syncTimer) { clearTimeout(syncTimer); }
-    syncTimer = setTimeout(function () {
-      syncTimer = null;
-      var copy = JSON.parse(JSON.stringify(s));
-      if (cep) { copy.engine = cep.getSystemPath("extension") + "/jsx/quote.jsx"; }
-      call("saveSettings", JSON.stringify(copy));
-    }, 500);
+    // copia su disco per lo script File > Script > Quota (scorciatoia da tastiera), subito:
+    // se si preme la scorciatoia appena dopo aver cambiato i lati deve già trovare quelli nuovi
+    var copy = JSON.parse(JSON.stringify(s));
+    if (cep) { copy.engine = cep.getSystemPath("extension") + "/jsx/quote.jsx"; }
+    call("saveSettings", JSON.stringify(copy));
   }
 
   function read() {
@@ -428,6 +424,7 @@
     $("btnQuote").addEventListener("click", function () {
       var s = read();
       save(s);
+      s.via = "pannello";
       call("quote", s, function (res) {
         status(res, function (n) { return n === "0" ? "Nessuna quota da disegnare." : n + (n === "1" ? " quota aggiunta." : " quote aggiunte."); });
         lastState = null;

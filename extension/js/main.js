@@ -19,7 +19,7 @@
   var STYLE = ["unit", "decimals", "scale", "comma", "showUnit", "sizeFactor", "offsetMm", "gapMm",
     "textGapMm", "fontSize", "strokeWidth", "endStyle", "endSize", "color", "textColor"];
 
-  var VERSION = "0.6.12";
+  var VERSION = "0.6.13";
   var cep = window.__adobe_cep__;
   var $ = function (id) { return document.getElementById(id); };
   var current = { mode: DEFAULTS.mode };
@@ -301,8 +301,9 @@
   function say(text) { status("OK:", function () { return text; }); }
 
   var lastState = null, lastDoc = null;
-  function refreshState() {
+  function refreshState(done) {
     call("state", read(), function (res) {
+      if (done) { done(); }
       if (res === lastState) { return; }
       lastState = res;
       var st;
@@ -337,13 +338,22 @@
     });
   }
 
-  // ogni secondo: ridisegna le quote degli oggetti cambiati (se attivo), poi aggiorna le info
-  var ticking = 0;   // ora di inizio del controllo in corso (0 = nessuno)
+  // ogni secondo: ridisegna le quote degli oggetti cambiati (se attivo), poi aggiorna le info.
+  // Il controllo successivo parte solo quando il precedente è finito, e se il controllo è lento
+  // (selezioni enormi, molti punti) si aspetta di più: il pannello non deve occupare Illustrator.
+  var tickTimer = null;
   function tick() {
-    if (ticking && Date.now() - ticking < 5000) { return; }   // se una risposta si perde, riprova dopo 5 s
-    if (!$("autoUpdate").checked) { refreshState(); return; }
-    ticking = Date.now();
-    call("autoUpdate", undefined, function () { ticking = 0; refreshState(); });
+    var start = Date.now(), finished = false;
+    function next() {
+      if (finished) { return; }
+      finished = true;
+      clearTimeout(tickTimer);
+      var took = Date.now() - start;
+      tickTimer = setTimeout(tick, Math.min(15000, Math.max(1000, took * 4)));
+    }
+    tickTimer = setTimeout(next, 30000);   // se una risposta si perde, riprova comunque
+    if (!$("autoUpdate").checked) { refreshState(next); return; }
+    call("autoUpdate", undefined, function () { refreshState(next); });
   }
 
   function applyTheme() {
@@ -602,8 +612,7 @@
       if (v !== VERSION && cep) {
         status("ERR:Il motore caricato in Illustrator (" + (v || "?") + ") non corrisponde al pannello (" + VERSION + "): chiudi e riapri Illustrator.");
       }
-      refreshState();
-      setInterval(tick, 1000);
+      tick();
     });
   }
 

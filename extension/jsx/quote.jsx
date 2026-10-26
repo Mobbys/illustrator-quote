@@ -12,7 +12,7 @@
  */
 
 var IQ = (function () {
-    var VERSION = "0.6.12";
+    var VERSION = "0.6.13";
     var LAYER_NAME = "Quote";
     var PT_PER_UNIT = { mm: 72 / 25.4, cm: 72 / 2.54, "in": 72, pt: 1, px: 1 };
 
@@ -526,13 +526,15 @@ var IQ = (function () {
         }
         for (i = 0; i < items.length; i++) { walk(items[i]); }
         // elimina i doppioni (punti coincidenti)
-        var uniq = [], k, dup;
+        // (per celle di 0,01 pt: con migliaia di punti il confronto a coppie bloccava Illustrator)
+        var uniq = [], seen = {}, cx, cy, dx, dy, dup;
         for (i = 0; i < out.length; i++) {
+            cx = Math.round(out[i][0] * 100); cy = Math.round(out[i][1] * 100);
             dup = false;
-            for (k = 0; k < uniq.length; k++) {
-                if (Math.abs(uniq[k][0] - out[i][0]) < 0.01 && Math.abs(uniq[k][1] - out[i][1]) < 0.01) { dup = true; break; }
+            for (dx = -1; dx <= 1 && !dup; dx++) {
+                for (dy = -1; dy <= 1 && !dup; dy++) { dup = seen.hasOwnProperty((cx + dx) + "," + (cy + dy)); }
             }
-            if (!dup) { uniq.push(out[i]); }
+            if (!dup) { seen[cx + "," + cy] = true; uniq.push(out[i]); }
         }
         var t = [], k2;
         for (k2 in types) { if (types.hasOwnProperty(k2)) { t.push(types[k2] + " " + k2); } }
